@@ -1,0 +1,1289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Write and compile complete CS 227 proofs in a small proof language.">
+  <meta name="theme-color" content="#111a2c">
+  <title>CS 227 Proof Checker Pro</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='13' fill='%23111a2c'/%3E%3Cpath d='M15 20l10 10-10 10M31 42h18' fill='none' stroke='%23c084fc' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #edf2ff;
+      --muted: #9caac1;
+      --panel: #161f33;
+      --panel-2: #11192a;
+      --editor: #0b1120;
+      --line: #32405b;
+      --purple: #c084fc;
+      --purple-deep: #8b5cf6;
+      --cyan: #67e8f9;
+      --green: #6ee7b7;
+      --red: #fda4af;
+      --amber: #fcd34d;
+      --focus: #bae6fd;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 82% -8%, rgb(126 34 206 / .24), transparent 34rem),
+        radial-gradient(circle at 8% 0, rgb(8 145 178 / .14), transparent 28rem),
+        #0b1020;
+      color: var(--ink);
+      font: 16px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, textarea { font: inherit; }
+    a { color: inherit; }
+
+    .shell { width: min(1440px, calc(100% - 2rem)); margin: 0 auto; padding: .7rem 0 2rem; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .55rem; }
+    .back { color: #c8d4e8; text-decoration: none; font-weight: 750; }
+    .back:hover, .back:focus-visible { color: white; text-decoration: underline; }
+    .mode { color: var(--purple); font: 800 .8rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; }
+
+    .heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: .65rem; }
+    h1 { margin: 0; font-size: clamp(1.6rem, 4vw, 2.35rem); line-height: 1.08; }
+    .heading p { max-width: 690px; margin: .35rem 0 0; color: var(--muted); }
+
+    .layout { display: grid; grid-template-columns: 1fr; gap: .65rem; align-items: start; }
+    .panel { border: 1px solid var(--line); border-radius: 6px; background: rgb(22 31 51 / .96); box-shadow: 0 18px 45px rgb(0 0 0 / .22); }
+    .setup { padding: .7rem .8rem; }
+    .panel h2 { margin: 0 0 .25rem; font-size: 1.05rem; }
+    .help { margin: 0 0 .55rem; color: var(--muted); font-size: .9rem; }
+    .problem-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem .8rem; align-items: start; }
+    .field { min-width: 0; }
+    .goal-field { grid-column: 1 / -1; }
+    label { display: block; margin: 0 0 .22rem; font-weight: 800; }
+
+    textarea, input[type="text"] {
+      width: 100%;
+      border: 1px solid #435273;
+      border-radius: 4px;
+      background: #0e1728;
+      color: #f8fbff;
+      outline: none;
+    }
+    textarea:focus, input[type="text"]:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgb(103 232 249 / .17); }
+    [aria-invalid="true"] { border-color: var(--red) !important; box-shadow: 0 0 0 3px rgb(253 164 175 / .12); }
+    .axiom-editor { display: grid; grid-template-columns: auto minmax(0, 1fr); overflow: hidden; border: 1px solid #435273; border-radius: 4px; background: #0e1728; }
+    .axiom-editor:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 3px rgb(103 232 249 / .17); }
+    .axiom-editor:has(#axioms[aria-invalid="true"]) { border-color: var(--red); box-shadow: 0 0 0 3px rgb(253 164 175 / .12); }
+    #axiom-numbers { min-width: 2.8rem; margin: 0; padding: .7rem .55rem; border-right: 1px solid #2d3a55; color: #7d8da9; text-align: right; user-select: none; font: .92rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    #axioms { min-height: 92px; padding: .6rem .7rem; border: 0; border-radius: 0; resize: vertical; font: .92rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    #axioms:focus { box-shadow: none; }
+    #definitions { min-height: 92px; padding: .6rem .7rem; resize: vertical; font: .88rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    #goal { padding: .55rem .65rem; font: .92rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .symbol-bar { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .4rem; }
+    .symbol {
+      min-width: 2.1rem; min-height: 2.1rem; padding: .25rem .5rem;
+      border: 1px solid #48597b; border-radius: 4px; background: #202b44; color: #eef4ff;
+      cursor: pointer; font: 700 1rem/1 Georgia, serif;
+    }
+    .symbol:hover, .symbol:focus-visible { border-color: var(--cyan); background: #293752; outline: none; }
+
+    .language { margin-top: .6rem; border-top: 1px solid var(--line); padding-top: .5rem; }
+    .language summary { cursor: pointer; color: #d8e2f3; font-weight: 850; }
+    .language p, .language li { color: #b2bed1; font-size: .86rem; }
+    .language ul { padding-left: 1.2rem; }
+    code { color: #e9d5ff; font: .86em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+    .terminal { overflow: hidden; }
+    .terminal-head { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(230px, .65fr); border-bottom: 1px solid var(--line); background: #131c2e; }
+    .state-block { min-width: 0; padding: .75rem 1rem; }
+    .state-block + .state-block { border-left: 1px solid var(--line); }
+    .state-label { display: block; margin-bottom: .25rem; color: var(--muted); font: 800 .72rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
+    .state-value { display: block; min-height: 1.5rem; overflow-wrap: anywhere; color: #f7f2ff; font: 700 .92rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .goal-expansion { margin-left: .55rem; color: #9aa8bd; font-weight: 550; }
+    .goal-progress { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem .6rem; margin-top: .45rem; }
+    .goal-progress[hidden] { display: none; }
+    .goal-progress-message { color: var(--green); font-size: .86rem; font-weight: 800; }
+    .goal-progress-button { min-height: 2rem; padding: .3rem .58rem; border: 1px solid rgb(110 231 183 / .5); border-radius: 4px; background: rgb(6 78 59 / .28); color: #d1fae5; cursor: pointer; font-weight: 800; }
+    .goal-progress-button:hover, .goal-progress-button:focus-visible { border-color: var(--focus); background: rgb(6 95 70 / .5); outline: none; }
+    #worlds { display: grid; gap: .16rem; color: var(--cyan); }
+    .world-line { display: block; padding-left: calc(var(--depth) * .45rem); overflow-wrap: anywhere; }
+    .world-rail { color: #8b5cf6; }
+
+    .editor-wrap { --editor-row-height: 1.5675rem; display: grid; grid-template-columns: auto auto auto minmax(260px, 1fr) minmax(230px, .72fr); min-height: 430px; background: var(--editor); }
+    #line-numbers {
+      min-width: 3.2rem; margin: 0; padding: 1rem .7rem; border-right: 1px solid #25314a;
+      background: #0a0f1c; color: #5f708e; text-align: right; user-select: none;
+      font: .95rem/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    #scope-rails {
+      min-width: 1rem; margin: 0; padding: 1rem .35rem; border-right: 1px solid #25314a;
+      background: #0b1120; color: #7c3aed; user-select: none; white-space: pre;
+      font: 700 .95rem/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    #line-statuses {
+      min-width: 2rem; margin: 0; padding: 1rem .25rem; border-right: 1px solid #25314a;
+      background: #0a0f1c; overflow: hidden;
+    }
+    .line-status-row { height: var(--editor-row-height); display: flex; align-items: center; justify-content: center; }
+    .line-status-mark { display: inline-grid; width: 1.25rem; height: 1.25rem; place-items: center; font: 900 .95rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .line-status-ok { color: var(--green); }
+    .line-status-error {
+      border: 0; border-radius: 4px; background: rgb(127 29 29 / .38); color: var(--red); cursor: pointer;
+    }
+    .line-status-error:hover, .line-status-error:focus-visible { background: rgb(159 18 57 / .58); outline: 2px solid var(--focus); outline-offset: 1px; }
+    #expansion-notes {
+      margin: 0; padding: 1rem .8rem; border-left: 1px solid #25314a; overflow: auto;
+      background: #0a101d; color: #8290a7; white-space: pre;
+      font: .82rem/1.92 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    #proof-source {
+      min-height: 430px; margin: 0; padding: 1rem; border: 0; border-radius: 0; resize: vertical;
+      background: transparent; color: #e9eef9; caret-color: var(--cyan); white-space: pre; overflow: auto;
+      font: .95rem/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; tab-size: 2;
+    }
+    #proof-source:focus { box-shadow: inset 0 0 0 2px rgb(103 232 249 / .35); }
+
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .55rem .75rem; border-top: 1px solid var(--line); background: #11192a; }
+    .button { min-height: 2.4rem; padding: .48rem .8rem; border: 1px solid #526181; border-radius: 5px; background: #202b44; color: white; cursor: pointer; font-weight: 850; }
+    .button:hover, .button:focus-visible { border-color: var(--focus); background: #2b3957; outline: none; }
+    .button.primary { border-color: #a855f7; background: #7e22ce; }
+    .button.primary:hover, .button.primary:focus-visible { background: #9333ea; }
+    .compile-note { margin-left: auto; color: var(--muted); font-size: .82rem; }
+
+    .console { border-top: 1px solid var(--line); background: #0d1424; }
+    .console-title { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .65rem 1rem; border-bottom: 1px solid #26324a; }
+    .console-title h2 { margin: 0; font: 800 .8rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
+    #summary { color: var(--muted); font-size: .84rem; }
+    #diagnostics { max-height: 270px; overflow: auto; margin: 0; padding: .7rem 1rem 1rem; list-style: none; }
+    .diagnostic { display: grid; grid-template-columns: 3.7rem minmax(0, 1fr); gap: .65rem; padding: .3rem 0; font: .88rem/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .diag-line { color: #657694; text-align: right; }
+    .diagnostic.ok .diag-message { color: var(--green); }
+    .diagnostic.error .diag-message { color: var(--red); }
+    .diagnostic.error:focus { outline: 2px solid var(--focus); outline-offset: 3px; }
+    .diagnostic.info .diag-message { color: var(--amber); }
+    .diagnostic.muted .diag-message { color: #8290a7; }
+    .success-banner { margin: .4rem .75rem .75rem; padding: .7rem .8rem; border: 1px solid rgb(110 231 183 / .4); border-radius: 5px; background: rgb(6 78 59 / .23); color: #a7f3d0; font-weight: 800; }
+    .error-banner { margin: .4rem .75rem .75rem; padding: .7rem .8rem; border: 1px solid rgb(253 164 175 / .4); border-radius: 5px; background: rgb(127 29 29 / .2); color: #fecdd3; font-weight: 800; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+    @media (max-width: 760px) {
+      .problem-fields { grid-template-columns: 1fr; }
+      .goal-field { grid-column: auto; }
+    }
+    @media (max-width: 620px) {
+      .shell { width: min(100% - 1rem, 1440px); padding-top: .65rem; }
+      .heading { align-items: start; }
+      .terminal-head { grid-template-columns: 1fr; }
+      .state-block + .state-block { border-left: 0; border-top: 1px solid var(--line); }
+      .compile-note { width: 100%; margin-left: 0; }
+      #proof-source, #line-numbers { font-size: .84rem; }
+      #line-numbers { min-width: 2.7rem; padding-inline: .45rem; }
+      #scope-rails { font-size: .84rem; }
+      .editor-wrap { --editor-row-height: 1.386rem; grid-template-columns: auto auto auto minmax(240px, 1fr) minmax(210px, .75fr); overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="topbar" aria-label="Proof tools">
+      <a class="back" href="index.html">← All proof tools</a>
+      <span class="mode">compiler mode</span>
+    </nav>
+
+    <header class="heading">
+      <div>
+        <h1>Proof Checker Pro</h1>
+        <p>Write the proof as a program. The compiler checks each command in order and stops where its understanding of the proof breaks.</p>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="panel setup" aria-labelledby="problem-heading">
+        <h2 id="problem-heading">Problem</h2>
+        <p class="help">Define reusable predicates, then enter one axiom per line. Roman-numeral axiom names are supplied automatically.</p>
+
+        <div class="problem-fields">
+          <div class="field">
+            <label for="definitions">Predicate definitions</label>
+            <textarea id="definitions" spellcheck="false" wrap="off" aria-describedby="definition-help">FAS(c) = (∀ d in Creatures)(S(d) → F(c, d))
+FAM(c) = (∀ d in Creatures)(M(d) → F(c, d))</textarea>
+            <span class="sr-only" id="definition-help">Enter one predicate definition per line. Predicate names begin uppercase and formal parameters begin lowercase.</span>
+          </div>
+
+          <div class="field">
+            <label for="axioms">Axioms</label>
+            <div class="axiom-editor">
+              <pre id="axiom-numbers" aria-hidden="true">I</pre>
+              <textarea id="axioms" spellcheck="false" wrap="off" aria-describedby="axiom-help">(∀ c in Creatures) (S(c) → M(c))</textarea>
+            </div>
+            <span class="sr-only" id="axiom-help">Enter one axiom per line. The checker automatically numbers them with Roman numerals.</span>
+          </div>
+
+          <div class="field goal-field">
+            <label for="goal">Goal</label>
+            <input id="goal" type="text" spellcheck="false" value="(∀ c in Creatures) (FAM(c) → FAS(c))">
+
+            <div class="symbol-bar" aria-label="Insert a logical symbol">
+              <button class="symbol" type="button" data-insert="∀ " aria-label="Insert for all">∀</button>
+              <button class="symbol" type="button" data-insert="∃ " aria-label="Insert there exists">∃</button>
+              <button class="symbol" type="button" data-insert="¬" aria-label="Insert not">¬</button>
+              <button class="symbol" type="button" data-insert=" ∧ " aria-label="Insert and">∧</button>
+              <button class="symbol" type="button" data-insert=" ∨ " aria-label="Insert or">∨</button>
+              <button class="symbol" type="button" data-insert=" → " aria-label="Insert implies">→</button>
+              <button class="symbol" type="button" data-insert=" ↔ " aria-label="Insert if and only if">↔</button>
+              <button class="symbol" type="button" data-insert="therefore " aria-label="Insert therefore">∴</button>
+            </div>
+          </div>
+        </div>
+
+        <details class="language">
+          <summary>Proof language</summary>
+          <p>End punctuation is optional. References are optional when the compiler can infer exactly which earlier lines you mean.</p>
+          <ul>
+            <li><code>Pretend Bob is a Creature</code> or <code>Let Bob be an arbitrary Creature</code> opens an arbitrary-object world.</li>
+            <li><code>Make believe S(Bob)</code> or <code>Assume S(Bob)</code> opens a make-believe world.</li>
+            <li><code>S(Bob) → M(Bob) by UI I</code> applies a rule and cites an axiom.</li>
+            <li><code>M(Bob) by detachment 2, 3</code> cites proof lines.</li>
+            <li><code>therefore S(Bob) → V(Bob) by MB 6</code> closes a make-believe world.</li>
+            <li><code>therefore (∀ c in Creatures)(S(c) → V(c)) by UG 7</code> closes an arbitrary-object world.</li>
+            <li><code>Pretend Ari is a witness with P(Ari) by EI I</code> opens an existential-witness world.</li>
+            <li><code>Case 1: Make believe P by cases III</code> opens one branch of a proof by cases.</li>
+          </ul>
+          <p>Compiler convention: quantified variables and definition parameters begin lowercase; introduced individuals such as <code>Bob</code> begin uppercase. A quantifier may omit its type when the surrounding proof determines it; two explicitly different types still conflict.</p>
+          <p>Other rule names: <code>EI</code>, <code>EG</code>, <code>and introduction</code>, <code>and elimination</code>, <code>or introduction</code>, <code>case</code>, <code>cases</code>, <code>De Morgan</code>, <code>double negation</code>, <code>iff introduction</code>, and <code>iff elimination</code>.</p>
+          <p>Shorthand becomes notation as you type: <code>\forall</code>, <code>\exists</code>, <code>\neg</code>, <code>/\</code>, <code>\/</code>, <code>-&gt;</code>, and <code>&lt;-&gt;</code>.</p>
+        </details>
+      </section>
+
+      <section class="panel terminal" aria-labelledby="editor-heading">
+        <div class="terminal-head" aria-live="polite">
+          <div class="state-block">
+            <span class="state-label">current goal</span>
+            <span class="state-value" id="current-goal">—</span>
+            <div class="goal-progress" id="goal-progress" hidden>
+              <span class="goal-progress-message" id="goal-progress-message"></span>
+              <button class="goal-progress-button" id="add-pop-line" type="button">Add pop-out line</button>
+            </div>
+          </div>
+          <div class="state-block">
+            <span class="state-label">pretend worlds</span>
+            <span class="state-value" id="worlds">original world</span>
+          </div>
+        </div>
+
+        <h2 class="sr-only" id="editor-heading">Proof source</h2>
+        <div class="editor-wrap">
+          <pre id="line-numbers" aria-hidden="true">1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12</pre>
+          <pre id="scope-rails" aria-hidden="true">
+│
+│ │
+│ │
+│ │ │
+│ │ │
+│ │ │
+│ │ │
+│ │ │
+│ │
+│
+│
+</pre>
+          <div id="line-statuses" aria-label="Proof line status"></div>
+          <textarea id="proof-source" aria-label="Proof source code" aria-describedby="proof-help" spellcheck="false" wrap="off">Pretend Bob is a Creature.
+  Make believe FAM(Bob).
+    Pretend Ari is a Creature.
+      Make believe S(Ari).
+        S(Ari) → M(Ari) by UI I
+        M(Ari) by detachment 4, 5
+        M(Ari) → F(Bob, Ari) by UI 2
+        F(Bob, Ari) by detachment 6, 7
+      therefore S(Ari) → F(Bob, Ari) by MB 8
+    therefore FAS(Bob) by UG 9
+  therefore FAM(Bob) → FAS(Bob) by MB 10
+therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
+          <pre id="expansion-notes" aria-label="Expanded predicate definitions"></pre>
+        </div>
+        <span class="sr-only" id="proof-help">Enter one proof command per line. The proof is rechecked after every edit.</span>
+
+        <div class="actions">
+          <button class="button primary" id="compile" type="button">Compile proof</button>
+          <button class="button" id="load-example" type="button">Load example</button>
+          <button class="button" id="clear-proof" type="button">Clear proof</button>
+          <span class="compile-note">Checks automatically as you type</span>
+        </div>
+
+        <section class="console" aria-labelledby="console-heading">
+          <div class="console-title">
+            <h2 id="console-heading">Compiler output</h2>
+            <span id="summary">ready</span>
+          </div>
+          <ol id="diagnostics" aria-live="polite"></ol>
+          <div id="result"></div>
+        </section>
+      </section>
+    </div>
+    <div class="sr-only" id="announcer" aria-live="assertive"></div>
+  </main>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const els = {
+        definitions: document.getElementById("definitions"),
+        axioms: document.getElementById("axioms"),
+        axiomNumbers: document.getElementById("axiom-numbers"),
+        goal: document.getElementById("goal"),
+        source: document.getElementById("proof-source"),
+        numbers: document.getElementById("line-numbers"),
+        rails: document.getElementById("scope-rails"),
+        statuses: document.getElementById("line-statuses"),
+        expansions: document.getElementById("expansion-notes"),
+        diagnostics: document.getElementById("diagnostics"),
+        summary: document.getElementById("summary"),
+        result: document.getElementById("result"),
+        currentGoal: document.getElementById("current-goal"),
+        goalProgress: document.getElementById("goal-progress"),
+        goalProgressMessage: document.getElementById("goal-progress-message"),
+        addPopLine: document.getElementById("add-pop-line"),
+        worlds: document.getElementById("worlds"),
+        announcer: document.getElementById("announcer")
+      };
+      let activeInput = els.source;
+      let compileTimer = 0;
+      let predicateDefinitions = new Map();
+      let pendingPopLine = "";
+
+      const replacements = [
+        [/\\forall\b/g, "∀"], [/\\exists\b/g, "∃"], [/\\neg\b/g, "¬"],
+        [/<->/g, "↔"], [/->/g, "→"], [/\\\//g, "∨"], [/\/\\/g, "∧"]
+      ];
+
+      function convertShorthand(text) {
+        return replacements.reduce((value, [pattern, replacement]) => value.replace(pattern, replacement), text);
+      }
+
+      function convertAtCaret(input) {
+        const before = input.value;
+        const start = input.selectionStart ?? before.length;
+        const converted = convertShorthand(before);
+        if (converted === before) return;
+        const convertedPrefix = convertShorthand(before.slice(0, start));
+        input.value = converted;
+        input.setSelectionRange(convertedPrefix.length, convertedPrefix.length);
+      }
+
+      function normalizeQuantifierWrappers(text) {
+        return text.replace(/\(\s*([∀∃])\s*([A-Za-z][A-Za-z0-9_]*)(?:\s+in\s+([A-Za-z][A-Za-z0-9_]*))?\s*\)/gi,
+          (_, symbol, variable, domain) => `${symbol} ${variable}${domain ? ` in ${domain}` : ""} `);
+      }
+
+      class FormulaParser {
+        constructor(raw) {
+          this.text = normalizeQuantifierWrappers(convertShorthand(String(raw || "")))
+            .trim().replace(/^(?:∴|therefore\b)\s*/i, "").replace(/[.;]\s*$/, "");
+          this.pos = 0;
+        }
+        error(message) { throw new Error(`${message} near character ${Math.min(this.pos + 1, this.text.length + 1)}.`); }
+        skip() { while (/\s/.test(this.text[this.pos] || "")) this.pos += 1; }
+        consume(symbol) {
+          this.skip();
+          if (this.text.startsWith(symbol, this.pos)) { this.pos += symbol.length; return true; }
+          return false;
+        }
+        word(word) {
+          this.skip();
+          const rest = this.text.slice(this.pos);
+          const match = rest.match(new RegExp(`^${word}\\b`, "i"));
+          if (!match) return false;
+          this.pos += match[0].length;
+          return true;
+        }
+        name() {
+          this.skip();
+          const match = this.text.slice(this.pos).match(/^([A-Za-z][A-Za-z0-9_]*)/);
+          if (!match) return null;
+          this.pos += match[1].length;
+          return match[1];
+        }
+        parse() {
+          if (!this.text) throw new Error("Enter a statement.");
+          const result = this.parseIff();
+          this.skip();
+          if (this.pos !== this.text.length) this.error(`Unexpected “${this.text[this.pos]}”`);
+          return result;
+        }
+        parseIff() {
+          let left = this.parseImp();
+          while (this.consume("↔")) left = { type: "iff", left, right: this.parseImp() };
+          return left;
+        }
+        parseImp() {
+          const left = this.parseOr();
+          return this.consume("→") ? { type: "imp", left, right: this.parseImp() } : left;
+        }
+        parseOr() {
+          let left = this.parseAnd();
+          while (this.consume("∨")) left = { type: "or", left, right: this.parseAnd() };
+          return left;
+        }
+        parseAnd() {
+          let left = this.parseUnary();
+          while (this.consume("∧")) left = { type: "and", left, right: this.parseUnary() };
+          return left;
+        }
+        parseUnary() {
+          this.skip();
+          if (this.consume("¬")) return { type: "not", value: this.parseUnary() };
+          if (this.consume("∀")) return this.parseQuantifier("forall");
+          if (this.consume("∃")) return this.parseQuantifier("exists");
+          if (this.consume("(")) {
+            const inside = this.parseIff();
+            if (!this.consume(")")) this.error("A closing parenthesis is missing");
+            return inside;
+          }
+          return this.parseAtom();
+        }
+        parseQuantifier(type) {
+          const variable = this.name();
+          if (!variable) this.error("A quantifier needs a variable name");
+          if (!/^[a-z]/.test(variable)) throw new Error(`Bound variable ${variable} must begin with a lowercase letter.`);
+          let domain = null;
+          if (this.word("in")) {
+            domain = this.name();
+            if (!domain) this.error("The word “in” must be followed by a type name");
+          }
+          this.consume(".");
+          return { type, variable, domain, body: this.parseUnary() };
+        }
+        parseAtom() {
+          this.skip();
+          const start = this.pos;
+          let depth = 0;
+          while (this.pos < this.text.length) {
+            const char = this.text[this.pos];
+            if (char === "(") { depth += 1; this.pos += 1; continue; }
+            if (char === ")") { if (depth === 0) break; depth -= 1; this.pos += 1; continue; }
+            if (depth === 0 && ["¬", "∧", "∨", "→", "↔", "∀", "∃"].includes(char)) break;
+            this.pos += 1;
+          }
+          if (depth !== 0) this.error("A closing parenthesis is missing");
+          const raw = this.text.slice(start, this.pos).trim();
+          if (!raw) this.error("A statement is missing");
+          return { type: "atom", value: normalizeAtom(raw) };
+        }
+      }
+
+      function normalizeAtom(raw) {
+        return raw.replace(/\s+/g, " ").replace(/\s*([(),])\s*/g, "$1")
+          .replace(/\s*([=<>≤≥+*])\s*/g, " $1 ").replace(/\s+/g, " ").trim();
+      }
+      function parseSurfaceFormula(text) { return new FormulaParser(text).parse(); }
+      function expandPredicates(ast, definitions = predicateDefinitions, stack = []) {
+        if (!ast) return ast;
+        if (ast.type === "atom") {
+          const call = ast.value.match(/^([A-Z][A-Z0-9_]*)\((.*)\)$/);
+          const definition = call ? definitions.get(call[1]) : null;
+          if (!definition) return ast;
+          if (stack.includes(definition.name)) throw new Error(`Predicate definitions form a cycle involving ${definition.name}.`);
+          const args = call[2].split(",").map(value => value.trim()).filter(Boolean);
+          if (args.length !== definition.params.length) throw new Error(`${definition.name} expects ${definition.params.length} argument${definition.params.length === 1 ? "" : "s"}, but this use has ${args.length}.`);
+          let expanded = definition.body;
+          definition.params.forEach((parameter, index) => { expanded = substitute(expanded, parameter, args[index]); });
+          return expandPredicates(expanded, definitions, [...stack, definition.name]);
+        }
+        if (ast.type === "not") return { type: "not", value: expandPredicates(ast.value, definitions, stack) };
+        if (ast.type === "forall" || ast.type === "exists") return { ...ast, body: expandPredicates(ast.body, definitions, stack) };
+        return { ...ast, left: expandPredicates(ast.left, definitions, stack), right: expandPredicates(ast.right, definitions, stack) };
+      }
+      function parseFormula(text) { return expandPredicates(parseSurfaceFormula(text)); }
+      function parseFormulaPair(text) {
+        const surfaceAst = parseSurfaceFormula(text);
+        return { surfaceAst, ast: expandPredicates(surfaceAst) };
+      }
+      const precedence = { iff: 1, imp: 2, or: 3, and: 4, not: 5, forall: 5, exists: 5, atom: 6 };
+      function formatFormula(ast, parent = 0) {
+        if (!ast) return "—";
+        let text;
+        if (ast.type === "atom") text = ast.value;
+        else if (ast.type === "not") text = `¬${formatFormula(ast.value, precedence.not)}`;
+        else if (ast.type === "forall" || ast.type === "exists") {
+          const symbol = ast.type === "forall" ? "∀" : "∃";
+          const head = `(${symbol} ${ast.variable}${ast.domain ? ` in ${ast.domain}` : ""})`;
+          const body = formatFormula(ast.body);
+          text = `${head}${ast.body.type === "atom" || ast.body.type === "not" ? body : `(${body})`}`;
+        } else {
+          const symbol = { and: "∧", or: "∨", imp: "→", iff: "↔" }[ast.type];
+          const p = precedence[ast.type];
+          text = `${formatFormula(ast.left, p)} ${symbol} ${formatFormula(ast.right, ast.type === "imp" ? p - 1 : p)}`;
+        }
+        return precedence[ast.type] < parent ? `(${text})` : text;
+      }
+      function sameFormula(a, b) {
+        if (!a || !b || a.type !== b.type) return false;
+        if (a.type === "atom") return a.value === b.value;
+        if (a.type === "not") return sameFormula(a.value, b.value);
+        if (a.type === "forall" || a.type === "exists") {
+          return a.variable === b.variable && sameType(a.domain, b.domain) && sameFormula(a.body, b.body);
+        }
+        return sameFormula(a.left, b.left) && sameFormula(a.right, b.right);
+      }
+      function escapeRegExp(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+      function substitute(ast, variable, term) {
+        if (ast.type === "atom") return { type: "atom", value: ast.value.replace(new RegExp(`\\b${escapeRegExp(variable)}\\b`, "g"), term) };
+        if (ast.type === "not") return { type: "not", value: substitute(ast.value, variable, term) };
+        if (ast.type === "forall" || ast.type === "exists") {
+          if (ast.variable === variable) return ast;
+          return { ...ast, body: substitute(ast.body, variable, term) };
+        }
+        return { ...ast, left: substitute(ast.left, variable, term), right: substitute(ast.right, variable, term) };
+      }
+      function collectTerms(ast, result = new Set()) {
+        if (!ast) return result;
+        if (ast.type === "atom") (ast.value.match(/[A-Za-z][A-Za-z0-9_]*|-?\d+(?:\.\d+)?/g) || []).forEach(x => result.add(x));
+        else if (ast.type === "not") collectTerms(ast.value, result);
+        else if (ast.type === "forall" || ast.type === "exists") collectTerms(ast.body, result);
+        else { collectTerms(ast.left, result); collectTerms(ast.right, result); }
+        return result;
+      }
+      function containsTerm(ast, term) {
+        if (!ast) return false;
+        if (ast.type === "atom") return new RegExp(`\\b${escapeRegExp(term)}\\b`).test(ast.value);
+        if (ast.type === "not") return containsTerm(ast.value, term);
+        if (ast.type === "forall" || ast.type === "exists") return ast.variable === term || containsTerm(ast.body, term);
+        return containsTerm(ast.left, term) || containsTerm(ast.right, term);
+      }
+      function instantiationTerm(pattern, result, variable) {
+        if (sameFormula(pattern, result) && !containsTerm(pattern, variable)) return "unchanged";
+        return [...collectTerms(result), ...collectTerms(pattern)].find(term => sameFormula(substitute(pattern, variable, term), result)) || null;
+      }
+      function deMorganPartners(ast) {
+        const values = [];
+        if (ast.type === "not" && ast.value.type === "and") values.push({ type: "or", left: { type: "not", value: ast.value.left }, right: { type: "not", value: ast.value.right } });
+        if (ast.type === "not" && ast.value.type === "or") values.push({ type: "and", left: { type: "not", value: ast.value.left }, right: { type: "not", value: ast.value.right } });
+        if (ast.type === "or" && ast.left.type === "not" && ast.right.type === "not") values.push({ type: "not", value: { type: "and", left: ast.left.value, right: ast.right.value } });
+        if (ast.type === "and" && ast.left.type === "not" && ast.right.type === "not") values.push({ type: "not", value: { type: "or", left: ast.left.value, right: ast.right.value } });
+        return values;
+      }
+
+      function singularType(value) { return String(value || "").trim().toLowerCase().replace(/ies$/, "y").replace(/s$/, ""); }
+      function sameType(a, b) { return !a || !b || singularType(a) === singularType(b); }
+      function isPrefix(prefix, whole) { return prefix.length <= whole.length && prefix.every((x, i) => x === whole[i]); }
+      function roman(number) {
+        const map = [[1000,"M"],[900,"CM"],[500,"D"],[400,"CD"],[100,"C"],[90,"XC"],[50,"L"],[40,"XL"],[10,"X"],[9,"IX"],[5,"V"],[4,"IV"],[1,"I"]];
+        let value = number, out = "";
+        for (const [amount, mark] of map) while (value >= amount) { out += mark; value -= amount; }
+        return out;
+      }
+      function stripPeriod(text) { return String(text || "").trim().replace(/[.;]\s*$/, "").trim(); }
+
+      function parseDefinitions() {
+        const definitions = new Map();
+        const lines = els.definitions.value.split(/\r?\n/);
+        lines.forEach((line, index) => {
+          if (!line.trim()) return;
+          const match = line.trim().match(/^([A-Z][A-Z0-9_]*)\s*\(([^)]*)\)\s*(?:=|≡)\s*(.+)$/);
+          if (!match) throw new Error(`Definition line ${index + 1} must look like FAS(c) = a formula.`);
+          const [, name, paramsText, bodyText] = match;
+          if (definitions.has(name)) throw new Error(`Predicate ${name} is defined more than once.`);
+          const params = paramsText.split(",").map(value => value.trim()).filter(Boolean);
+          if (!params.length || params.some(value => !/^[a-z][A-Za-z0-9_]*$/.test(value))) throw new Error(`The formal parameters of ${name} must begin with lowercase letters.`);
+          if (new Set(params).size !== params.length) throw new Error(`Predicate ${name} repeats a formal parameter.`);
+          definitions.set(name, { name, params, body: parseSurfaceFormula(bodyText) });
+        });
+        for (const definition of definitions.values()) expandPredicates({ type: "atom", value: `${definition.name}(${definition.params.join(",")})` }, definitions);
+        return definitions;
+      }
+
+      function parseAxioms() {
+        const sources = [];
+        const seen = new Set();
+        const lines = els.axioms.value.split(/\r?\n/).filter(line => line.trim());
+        lines.forEach((line, index) => {
+          const match = line.trim().match(/^([IVXLCDM]+|A\d+)\s*[.:)]\s*(.+)$/i);
+          const ref = (match ? match[1] : roman(index + 1)).toUpperCase();
+          const formulaText = match ? match[2] : line;
+          if (seen.has(ref)) throw new Error(`Axiom name ${ref} is used more than once.`);
+          seen.add(ref);
+          sources.push({ ref, label: `Axiom ${ref}`, ast: parseFormula(formulaText), scopePath: [], axiom: true, line: 0, usable: true });
+        });
+        if (!sources.length) throw new Error("Enter at least one axiom.");
+        return sources;
+      }
+
+      const ruleAliases = new Map([
+        ["axiom", "axiom"], ["ui", "ui"], ["universal instantiation", "ui"],
+        ["detachment", "detach"], ["modus ponens", "detach"],
+        ["ug", "ug"], ["universal generalization", "ug"], ["mb", "mb"], ["make believe", "mb"],
+        ["ei", "ei"], ["existential instantiation", "ei"], ["eg", "eg"], ["existential generalization", "eg"],
+        ["andi", "and_i"], ["∧i", "and_i"], ["and introduction", "and_i"],
+        ["ande", "and_e"], ["∧e", "and_e"], ["and elimination", "and_e"],
+        ["ori", "or_i"], ["∨i", "or_i"], ["or introduction", "or_i"],
+        ["case", "case_close"], ["end case", "case_close"], ["cases", "cases"], ["proof by cases", "cases"],
+        ["de morgan", "demorgan"], ["demorgans", "demorgan"], ["double negation", "dn"], ["dn", "dn"],
+        ["iff introduction", "iff_i"], ["↔i", "iff_i"], ["iffi", "iff_i"],
+        ["iff elimination", "iff_e"], ["↔e", "iff_e"], ["iffe", "iff_e"]
+      ]);
+      const aliasOrder = [...ruleAliases.keys()].sort((a, b) => b.length - a.length);
+
+      function parseReason(text) {
+        const raw = stripPeriod(text).trim();
+        const lower = raw.toLowerCase();
+        const alias = aliasOrder.find(name => lower === name || lower.startsWith(`${name} `));
+        if (!alias) throw new Error(`Unknown proof rule “${raw}”. Open “Proof language” to see the accepted names.`);
+        return { rule: ruleAliases.get(alias), refsText: raw.slice(alias.length).trim() };
+      }
+      function parseRefTokens(text) {
+        if (!text) return [];
+        return (text.toUpperCase().match(/A\d+|\b[IVXLCDM]+\b|\d+/g) || []);
+      }
+
+      function parseCommand(raw) {
+        const clean = stripPeriod(convertShorthand(raw));
+        let match = clean.match(/^Pretend\s+([A-Za-z][A-Za-z0-9_]*)\s+is\s+(?:an?\s+)?(?:arbitrary\s+)?([A-Za-z][A-Za-z0-9_]*)$/i);
+        if (match) {
+          if (!/^[A-Z]/.test(match[1])) throw new Error(`Introduced individual ${match[1]} must begin with an uppercase letter.`);
+          return { kind: "ug_open", name: match[1], domain: match[2] };
+        }
+        match = clean.match(/^Let\s+([A-Za-z][A-Za-z0-9_]*)\s+be\s+(?:an?\s+)?(?:arbitrary\s+)?([A-Za-z][A-Za-z0-9_]*)$/i);
+        if (match) {
+          if (!/^[A-Z]/.test(match[1])) throw new Error(`Introduced individual ${match[1]} must begin with an uppercase letter.`);
+          return { kind: "ug_open", name: match[1], domain: match[2] };
+        }
+        match = clean.match(/^Make\s+believe\s+(.+)$/i);
+        if (match) return { kind: "mb_open", wording: "make believe", ...parseFormulaPair(match[1]) };
+        match = clean.match(/^Assume\s+(.+)$/i);
+        if (match) return { kind: "mb_open", wording: "assume", ...parseFormulaPair(match[1]) };
+        match = clean.match(/^Pretend\s+([A-Za-z][A-Za-z0-9_]*)\s+is\s+a\s+witness\s+(?:with|such\s+that)\s+(.+?)\s+by\s+(.+)$/i);
+        if (match) {
+          if (!/^[A-Z]/.test(match[1])) throw new Error(`Witness name ${match[1]} must begin with an uppercase letter.`);
+          const reason = parseReason(match[3]);
+          if (reason.rule !== "ei") throw new Error("A witness world must begin with ‘by EI’.");
+          return { kind: "ei_open", witness: match[1], ...parseFormulaPair(match[2]), refsText: reason.refsText };
+        }
+        match = clean.match(/^Case\s+(1|2|left|right)\s*:\s*(?:Make\s+believe\s+)?(.+?)\s+by\s+(?:cases|case)\s+(.+)$/i);
+        if (match) return { kind: match[1].toLowerCase() === "1" || match[1].toLowerCase() === "left" ? "case_left" : "case_right", ...parseFormulaPair(match[2]), refsText: match[3] };
+        const byIndex = clean.toLowerCase().lastIndexOf(" by ");
+        if (byIndex < 0) throw new Error("A derived statement needs ‘by’ followed by a proof rule.");
+        const statement = clean.slice(0, byIndex).replace(/^(?:∴|therefore\b)\s*/i, "").trim();
+        if (!statement) throw new Error("Put a statement before ‘by’.");
+        const reason = parseReason(clean.slice(byIndex + 4));
+        return { kind: "derive", ...parseFormulaPair(statement), ...reason };
+      }
+
+      function resolveRefs(refsText, lineNumber, sources, path, allowClosed = false) {
+        return parseRefTokens(refsText).map(token => {
+          const source = sources.get(token);
+          if (!source) throw new Error(`${token} does not name an axiom or an earlier valid proof line.`);
+          if (/^\d+$/.test(token) && Number(token) >= lineNumber) throw new Error(`Line ${token} is not earlier than line ${lineNumber}.`);
+          if (!allowClosed && !isPrefix(source.scopePath || [], path)) throw new Error(`${token} belongs to a pretend world that is no longer open.`);
+          return source;
+        });
+      }
+      function accessibleSources(sources, path) {
+        return [...sources.values()].filter(source => source.ast && source.usable !== false && isPrefix(source.scopePath || [], path));
+      }
+      function latestInScope(sources, path, scopeId, predicate = () => true) {
+        return accessibleSources(sources, path).filter(source => source.line && source.scopePath.includes(scopeId) && predicate(source)).sort((a, b) => b.line - a.line)[0] || null;
+      }
+      function unique(matches, noMatch, ambiguous) {
+        if (!matches.length) throw new Error(noMatch);
+        if (matches.length > 1) throw new Error(`${ambiguous} Cite the intended sources after the rule name.`);
+        return matches;
+      }
+      function labelList(values) { return values.map(value => value.ref).join(", "); }
+
+      function inferRefs(rule, ast, sources, path, top) {
+        const pool = accessibleSources(sources, path);
+        if (rule === "axiom") return unique(pool.filter(x => x.axiom && sameFormula(x.ast, ast)), "No axiom matches this statement.", "More than one axiom matches");
+        if (rule === "ui") return unique(pool.filter(x => x.ast.type === "forall" && instantiationTerm(x.ast.body, ast, x.ast.variable)), "No available universal statement produces this line by UI.", "UI has more than one possible source");
+        if (rule === "detach") {
+          const pairs = [];
+          pool.filter(x => x.ast.type === "imp" && sameFormula(x.ast.right, ast)).forEach(imp => pool.filter(x => sameFormula(x.ast, imp.ast.left)).forEach(left => pairs.push([imp, left])));
+          return unique(pairs, "No available implication and matching if-part produce this line by detachment.", "Detachment has more than one possible pair")[0];
+        }
+        if (rule === "eg") return unique(pool.filter(x => ast.type === "exists" && instantiationTerm(ast.body, x.ast, ast.variable)), "No available statement is an instance of this existential conclusion.", "EG has more than one possible source");
+        if (rule === "and_e") return unique(pool.filter(x => x.ast.type === "and" && (sameFormula(x.ast.left, ast) || sameFormula(x.ast.right, ast))), "No available conjunction contains this statement.", "And elimination has more than one possible source");
+        if (rule === "or_i") return unique(pool.filter(x => ast.type === "or" && (sameFormula(x.ast, ast.left) || sameFormula(x.ast, ast.right))), "Neither side of this disjunction is available.", "Or introduction has more than one possible source");
+        if (rule === "demorgan") return unique(pool.filter(x => deMorganPartners(x.ast).some(y => sameFormula(y, ast))), "No available line has this De Morgan equivalent.", "De Morgan has more than one possible source");
+        if (rule === "dn") return unique(pool.filter(x => (x.ast.type === "not" && x.ast.value.type === "not" && sameFormula(x.ast.value.value, ast)) || (ast.type === "not" && ast.value.type === "not" && sameFormula(ast.value.value, x.ast))), "No available line differs from this one by exactly two negations.", "Double negation has more than one possible source");
+        if (["mb", "ug", "ei", "case_close"].includes(rule) && top) {
+          const target = rule === "mb" && ast.type === "imp" ? ast.right : rule === "ug" && ast.type === "forall" ? substitute(ast.body, ast.variable, top.name) : ast;
+          const source = latestInScope(sources, path, top.id, x => sameFormula(x.ast, target));
+          if (!source) throw new Error(`No line in the current pretend world establishes ${formatFormula(target)}.`);
+          return [source];
+        }
+        throw new Error("The compiler cannot infer these references. Add the relevant axiom and line names after the rule.");
+      }
+
+      function validateRule(rule, ast, refs, context) {
+        const { top, sources, path } = context;
+        if (rule === "axiom") {
+          if (refs.length !== 1 || !refs[0].axiom || !sameFormula(refs[0].ast, ast)) throw new Error("The statement must match the cited axiom.");
+          return "restates an axiom";
+        }
+        if (rule === "ui") {
+          if (refs.length !== 1 || refs[0].ast.type !== "forall") throw new Error("UI needs one universal statement.");
+          const term = instantiationTerm(refs[0].ast.body, ast, refs[0].ast.variable);
+          if (!term) throw new Error(`Replacing ${refs[0].ast.variable} with one object does not produce this statement.`);
+          if (term !== "unchanged" && /^[a-z]/.test(term)) throw new Error(`Individual name ${term} must begin with an uppercase letter.`);
+          return `UI from ${refs[0].ref}${term === "unchanged" ? "" : `, taking ${refs[0].ast.variable} to ${term}`}`;
+        }
+        if (rule === "detach") {
+          if (refs.length !== 2) throw new Error("Detachment needs two sources: an implication and its if-part.");
+          const implication = refs.find(x => x.ast.type === "imp");
+          const antecedent = refs.find(x => x !== implication);
+          if (!implication || !antecedent || !sameFormula(implication.ast.left, antecedent.ast)) throw new Error("The cited sources must have the forms P → Q and P.");
+          if (!sameFormula(implication.ast.right, ast)) throw new Error(`Detachment gives ${formatFormula(implication.ast.right)}, not ${formatFormula(ast)}.`);
+          return `detachment from ${labelList(refs)}`;
+        }
+        if (rule === "mb") {
+          if (!top || top.type !== "mb") throw new Error("There is no open make-believe world to close.");
+          if (ast.type !== "imp" || !sameFormula(ast.left, top.assumption)) throw new Error(`The conclusion must have ${formatFormula(top.assumption)} as its if-part.`);
+          if (refs.length !== 1 || !sameFormula(refs[0].ast, ast.right) || !refs[0].scopePath.includes(top.id)) throw new Error(`Establish ${formatFormula(ast.right)} inside this make-believe world first.`);
+          return "make-believe conclusion; pop out one level";
+        }
+        if (rule === "ug") {
+          if (!top || top.type !== "ug") throw new Error("There is no open arbitrary-object world to close.");
+          if (ast.type !== "forall") throw new Error("UG must conclude with a universal statement.");
+          if (!sameType(ast.domain, top.domain)) throw new Error(`${top.name} was introduced as a ${top.domain}, so the quantified type must match.`);
+          const expected = substitute(ast.body, ast.variable, top.name);
+          if (refs.length !== 1 || !sameFormula(refs[0].ast, expected) || !refs[0].scopePath.includes(top.id)) throw new Error(`First establish ${formatFormula(expected)} about arbitrary ${top.name}.`);
+          return "universal generalization; pop out one level";
+        }
+        if (rule === "ei") {
+          if (!top || top.type !== "ei") throw new Error("There is no open existential-witness world to close.");
+          if (containsTerm(ast, top.witness)) throw new Error(`The conclusion still contains temporary witness name ${top.witness}.`);
+          if (refs.length !== 1 || !sameFormula(refs[0].ast, ast) || !refs[0].scopePath.includes(top.id)) throw new Error("The cited name-free statement must be established inside the witness world.");
+          return "existential instantiation complete; pop out one level";
+        }
+        if (rule === "eg") {
+          const term = refs.length === 1 && ast.type === "exists" ? instantiationTerm(ast.body, refs[0].ast, ast.variable) : null;
+          if (!term) throw new Error("The cited statement must be one instance of the existential conclusion.");
+          if (term !== "unchanged" && /^[a-z]/.test(term)) throw new Error(`Individual name ${term} must begin with an uppercase letter.`);
+          return `existential generalization from ${refs[0].ref}`;
+        }
+        if (rule === "and_i") {
+          if (refs.length !== 2 || ast.type !== "and") throw new Error("And introduction needs two sources and a conclusion P ∧ Q.");
+          const direct = sameFormula(ast.left, refs[0].ast) && sameFormula(ast.right, refs[1].ast);
+          const reverse = sameFormula(ast.left, refs[1].ast) && sameFormula(ast.right, refs[0].ast);
+          if (!direct && !reverse) throw new Error("The cited statements must be the two parts of this conjunction.");
+          return `and introduction from ${labelList(refs)}`;
+        }
+        if (rule === "and_e") {
+          if (refs.length !== 1 || refs[0].ast.type !== "and" || (!sameFormula(ast, refs[0].ast.left) && !sameFormula(ast, refs[0].ast.right))) throw new Error("This statement must be one part of the cited conjunction.");
+          return `and elimination from ${refs[0].ref}`;
+        }
+        if (rule === "or_i") {
+          if (refs.length !== 1 || ast.type !== "or" || (!sameFormula(ast.left, refs[0].ast) && !sameFormula(ast.right, refs[0].ast))) throw new Error("One side of this disjunction must match the cited statement.");
+          return `or introduction from ${refs[0].ref}`;
+        }
+        if (rule === "case_close") {
+          if (!top || top.type !== "case") throw new Error("There is no open case to finish.");
+          if (refs.length !== 1 || !sameFormula(refs[0].ast, ast) || !refs[0].scopePath.includes(top.id)) throw new Error("The result must have been established inside this case.");
+          return `finished ${top.side} case`;
+        }
+        if (rule === "cases") {
+          if (refs.length !== 3) throw new Error("Proof by cases needs the disjunction and the two finished case lines.");
+          const disjunction = refs.find(x => x.ast.type === "or" && !x.meta?.caseSummary);
+          const summaries = refs.filter(x => x.meta?.caseSummary);
+          const left = summaries.find(x => x.meta.side === "left"), right = summaries.find(x => x.meta.side === "right");
+          if (!disjunction || !left || !right) throw new Error("Cite one disjunction, one finished left case, and one finished right case.");
+          if (left.meta.disjunctionRef !== disjunction.ref || right.meta.disjunctionRef !== disjunction.ref) throw new Error("Both cases must come from the cited disjunction.");
+          if (!sameFormula(left.ast, right.ast) || !sameFormula(ast, left.ast)) throw new Error("Both cases must establish this same conclusion.");
+          return `proof by cases from ${labelList(refs)}`;
+        }
+        if (rule === "demorgan") {
+          if (refs.length !== 1 || !deMorganPartners(refs[0].ast).some(x => sameFormula(x, ast))) throw new Error("This is not the De Morgan equivalent of the cited statement.");
+          return `De Morgan’s law on ${refs[0].ref}`;
+        }
+        if (rule === "dn") {
+          if (refs.length !== 1) throw new Error("Double negation needs one source.");
+          const removes = refs[0].ast.type === "not" && refs[0].ast.value.type === "not" && sameFormula(refs[0].ast.value.value, ast);
+          const adds = ast.type === "not" && ast.value.type === "not" && sameFormula(ast.value.value, refs[0].ast);
+          if (!removes && !adds) throw new Error("Add or remove exactly two negations.");
+          return `double negation on ${refs[0].ref}`;
+        }
+        if (rule === "iff_i") {
+          if (refs.length !== 2 || ast.type !== "iff" || refs.some(x => x.ast.type !== "imp")) throw new Error("Iff introduction needs P → Q and Q → P.");
+          const [first, second] = refs;
+          if (!sameFormula(first.ast.left, second.ast.right) || !sameFormula(first.ast.right, second.ast.left)) throw new Error("The cited implications must go in opposite directions.");
+          if (!((sameFormula(ast.left, first.ast.left) && sameFormula(ast.right, first.ast.right)) || (sameFormula(ast.left, first.ast.right) && sameFormula(ast.right, first.ast.left)))) throw new Error("The biconditional must connect the same two statements.");
+          return `iff introduction from ${labelList(refs)}`;
+        }
+        if (rule === "iff_e") {
+          if (refs.length !== 1 || refs[0].ast.type !== "iff" || ast.type !== "imp") throw new Error("Iff elimination turns P ↔ Q into P → Q or Q → P.");
+          const iff = refs[0].ast;
+          if (!((sameFormula(ast.left, iff.left) && sameFormula(ast.right, iff.right)) || (sameFormula(ast.left, iff.right) && sameFormula(ast.right, iff.left)))) throw new Error("The implication must use the two sides of the cited biconditional.");
+          return `iff elimination from ${refs[0].ref}`;
+        }
+        throw new Error("That rule is not available in the Pro compiler yet.");
+      }
+
+      function currentGoalState(surfaceGoal, expandedGoal, scopes) {
+        let surface = surfaceGoal;
+        let expanded = expandedGoal;
+        scopes.forEach(scope => {
+          if (scope.type === "ug" && expanded?.type === "forall" && sameType(expanded.domain, scope.domain)) {
+            expanded = substitute(expanded.body, expanded.variable, scope.name);
+            surface = surface?.type === "forall" && sameType(surface.domain, scope.domain)
+              ? substitute(surface.body, surface.variable, scope.name)
+              : expanded;
+          } else if (scope.type === "mb" && expanded?.type === "imp" && sameFormula(expanded.left, scope.assumption)) {
+            expanded = expanded.right;
+            surface = surface?.type === "imp" && sameFormula(expandPredicates(surface.left), scope.assumption) ? surface.right : expanded;
+          }
+        });
+        return { surface, expanded };
+      }
+
+      function renderGoal(state) {
+        els.currentGoal.replaceChildren();
+        if (!state?.surface) { els.currentGoal.textContent = "—"; return; }
+        const primary = document.createElement("span");
+        primary.textContent = formatFormula(state.surface);
+        els.currentGoal.append(primary);
+        if (!sameFormula(state.surface, state.expanded)) {
+          const expansion = document.createElement("span");
+          expansion.className = "goal-expansion";
+          expansion.textContent = ` ≡ ${formatFormula(state.expanded)}`;
+          els.currentGoal.append(expansion);
+        }
+      }
+
+      function nextPopSuggestion(surfaceGoal, expandedGoal, scopes, sources) {
+        if (!scopes.length) return null;
+        const top = scopes[scopes.length - 1];
+        const path = scopes.map(scope => scope.id);
+        const target = currentGoalState(surfaceGoal, expandedGoal, scopes);
+        const source = latestInScope(sources, path, top.id, item => sameFormula(item.ast, target.expanded));
+        if (!source) return null;
+        const parentTarget = currentGoalState(surfaceGoal, expandedGoal, scopes.slice(0, -1));
+        const statement = formatFormula(parentTarget.surface || parentTarget.expanded);
+        const rules = { ug: "UG", mb: "MB", ei: "EI", case: "case" };
+        const rule = rules[top.type];
+        if (!rule) return null;
+        return {
+          line: `therefore ${statement} by ${rule} ${source.ref}`,
+          message: top.type === "case" ? "✓ Current goal met in this case." : "✓ Current goal met in this pretend world.",
+          button: top.type === "case" ? "Add case-closing line" : "Add pop-out line"
+        };
+      }
+
+      function renderGoalProgress(suggestion, complete = false) {
+        pendingPopLine = suggestion?.line || "";
+        if (!suggestion && !complete) {
+          els.goalProgress.hidden = true;
+          return;
+        }
+        els.goalProgress.hidden = false;
+        els.goalProgressMessage.textContent = complete ? "✓ Proof complete." : suggestion.message;
+        els.addPopLine.hidden = complete;
+        if (suggestion) {
+          els.addPopLine.textContent = suggestion.button;
+          els.addPopLine.title = `Insert: ${suggestion.line}`;
+          els.addPopLine.setAttribute("aria-label", `${suggestion.button}: ${suggestion.line}`);
+        } else {
+          els.addPopLine.removeAttribute("title");
+          els.addPopLine.removeAttribute("aria-label");
+        }
+      }
+
+      function renderWorlds(scopes) {
+        els.worlds.replaceChildren();
+        if (!scopes.length) {
+          els.worlds.textContent = "original world";
+          return;
+        }
+        scopes.forEach((scope, index) => {
+          const line = document.createElement("span");
+          line.className = "world-line";
+          line.style.setProperty("--depth", index);
+          if (index) {
+            const rail = document.createElement("span");
+            rail.className = "world-rail";
+            rail.textContent = "↳ ";
+            line.append(rail);
+          }
+          line.append(scope.label);
+          els.worlds.append(line);
+        });
+      }
+
+      function diagnostic(kind, line, message, screenReaderDetail = "") {
+        const item = document.createElement("li");
+        item.className = `diagnostic ${kind}`;
+        if (kind === "error" && line) {
+          item.id = `diagnostic-line-${line}`;
+          item.tabIndex = -1;
+        }
+        const number = document.createElement("span");
+        number.className = "diag-line";
+        number.textContent = line ? `line ${line}` : "";
+        const copy = document.createElement("span");
+        copy.className = "diag-message";
+        copy.textContent = message;
+        if (screenReaderDetail) {
+          const detail = document.createElement("span");
+          detail.className = "sr-only";
+          detail.textContent = ` ${screenReaderDetail}`;
+          copy.append(detail);
+        }
+        item.append(number, copy);
+        els.diagnostics.append(item);
+      }
+
+      function renderLineStatuses(statuses) {
+        els.statuses.replaceChildren();
+        const fragment = document.createDocumentFragment();
+        statuses.forEach(status => {
+          const row = document.createElement("div");
+          row.className = "line-status-row";
+          if (status?.kind === "ok") {
+            const mark = document.createElement("span");
+            mark.className = "line-status-mark line-status-ok";
+            mark.textContent = "✓";
+            mark.title = `Line ${status.line} is valid: ${status.message}`;
+            mark.setAttribute("aria-hidden", "true");
+            row.append(mark);
+          } else if (status?.kind === "error") {
+            const mark = document.createElement("button");
+            mark.type = "button";
+            mark.className = "line-status-mark line-status-error";
+            mark.textContent = "×";
+            mark.title = status.message;
+            mark.setAttribute("aria-label", `Line ${status.line} error: ${status.message} Show this error in compiler output.`);
+            mark.addEventListener("click", () => {
+              const target = document.getElementById(`diagnostic-line-${status.line}`);
+              target?.scrollIntoView({ behavior: "smooth", block: "center" });
+              target?.focus({ preventScroll: true });
+            });
+            row.append(mark);
+          }
+          fragment.append(row);
+        });
+        els.statuses.append(fragment);
+        els.statuses.scrollTop = els.source.scrollTop;
+      }
+
+      function isWorldCloser(line) {
+        return /^(?:∴|therefore)\b.*\bby\s+(?:MB|UG|EI|case)\b/i.test(line.trim());
+      }
+      function isWorldOpener(line) {
+        const text = line.trim();
+        return /^Make\s+believe\b/i.test(text)
+          || /^Assume\b/i.test(text)
+          || /^Case\s+(?:1|2|left|right)\s*:/i.test(text)
+          || /^Pretend\s+[A-Za-z][A-Za-z0-9_]*\s+is\s+/i.test(text)
+          || /^Let\s+[A-Za-z][A-Za-z0-9_]*\s+be\s+/i.test(text);
+      }
+
+      function proofLayout(lines) {
+        let depth = 0;
+        return lines.map(line => {
+          const trimmed = line.trim();
+          if (!trimmed || /^(?:#|\/\/)/.test(trimmed)) return { depth, trimmed, blank: true };
+          const closes = isWorldCloser(trimmed);
+          const lineDepth = closes ? Math.max(0, depth - 1) : depth;
+          depth = Math.max(0, depth + (isWorldOpener(trimmed) ? 1 : 0) - (closes ? 1 : 0));
+          return { depth: lineDepth, trimmed, blank: false };
+        });
+      }
+
+      function formatProofIndentation() {
+        const input = els.source;
+        const old = input.value;
+        const caret = input.selectionStart ?? old.length;
+        const before = old.slice(0, caret);
+        const lineIndex = before.split("\n").length - 1;
+        const oldLineStart = before.lastIndexOf("\n") + 1;
+        const oldLine = old.split("\n")[lineIndex] || "";
+        const oldIndent = (oldLine.match(/^\s*/) || [""])[0].length;
+        const logicalColumn = Math.max(0, caret - oldLineStart - oldIndent);
+        const lines = old.split("\n");
+        const layout = proofLayout(lines);
+        const formatted = lines.map((line, index) => {
+          if (!line.trim()) return line;
+          const content = line.replace(/^\s*/, "");
+          return `${"  ".repeat(layout[index].depth)}${content}`;
+        });
+        const next = formatted.join("\n");
+        if (next === old) return;
+        input.value = next;
+        const newLineStart = formatted.slice(0, lineIndex).reduce((sum, line) => sum + line.length + 1, 0);
+        const newIndent = "  ".repeat(layout[lineIndex]?.depth || 0).length;
+        const newCaret = Math.min(next.length, newLineStart + newIndent + logicalColumn);
+        input.setSelectionRange(newCaret, newCaret);
+      }
+
+      function updateNumbers() {
+        let proofLine = 0;
+        const lines = els.source.value.split("\n");
+        const layout = proofLayout(lines);
+        const numbers = lines.map(line => {
+          if (!line.trim() || /^\s*(?:#|\/\/)/.test(line)) return "";
+          proofLine += 1;
+          return String(proofLine);
+        });
+        els.numbers.textContent = numbers.join("\n") || "1";
+        els.rails.textContent = layout.map(item => item.blank ? "" : "│ ".repeat(item.depth)).join("\n");
+        els.numbers.scrollTop = els.source.scrollTop;
+        els.rails.scrollTop = els.source.scrollTop;
+      }
+
+      function updateAxiomNumbers() {
+        let axiomNumber = 0;
+        const labels = els.axioms.value.split("\n").map(line => {
+          if (!line.trim()) return "";
+          axiomNumber += 1;
+          return roman(axiomNumber);
+        });
+        els.axiomNumbers.textContent = labels.join("\n") || "I";
+        els.axiomNumbers.scrollTop = els.axioms.scrollTop;
+      }
+
+      function compile({ announce = false } = {}) {
+        window.clearTimeout(compileTimer);
+        els.diagnostics.replaceChildren();
+        els.result.replaceChildren();
+        els.definitions.setAttribute("aria-invalid", "false");
+        els.axioms.setAttribute("aria-invalid", "false");
+        els.goal.setAttribute("aria-invalid", "false");
+        els.source.setAttribute("aria-invalid", "false");
+        els.expansions.textContent = "";
+        renderLineStatuses(els.source.value.split(/\r?\n/).map(() => null));
+        renderGoal(null);
+        renderGoalProgress(null);
+        els.worlds.textContent = "original world";
+        let axioms, goal, goalSurface;
+        try { predicateDefinitions = parseDefinitions(); }
+        catch (error) {
+          els.definitions.setAttribute("aria-invalid", "true");
+          diagnostic("error", 0, `Definitions: ${error.message}`);
+          finish("compile failed", null, [], error.message, announce);
+          return;
+        }
+        try { axioms = parseAxioms(); }
+        catch (error) {
+          els.axioms.setAttribute("aria-invalid", "true");
+          diagnostic("error", 0, `Axioms: ${error.message}`);
+          finish("compile failed", null, [], error.message, announce);
+          return;
+        }
+        try {
+          const parsedGoal = parseFormulaPair(els.goal.value);
+          goalSurface = parsedGoal.surfaceAst;
+          goal = parsedGoal.ast;
+        }
+        catch (error) {
+          els.goal.setAttribute("aria-invalid", "true");
+          diagnostic("error", 0, `Goal: ${error.message}`);
+          finish("compile failed", null, [], error.message, announce);
+          return;
+        }
+
+        const sources = new Map(axioms.map(x => [x.ref, x]));
+        const scopes = [];
+        const outerFormulas = [...axioms.map(x => x.ast), goal];
+        let scopeCounter = 0;
+        let proofLine = 0;
+        let lastOuter = null;
+        let failed = null;
+        const physicalLines = els.source.value.split(/\r?\n/);
+        const expansionNotes = physicalLines.map(() => "");
+        const lineStatuses = physicalLines.map(() => null);
+
+        for (let physical = 0; physical < physicalLines.length; physical += 1) {
+          const raw = physicalLines[physical].trim();
+          if (!raw || /^(?:#|\/\/)/.test(raw)) continue;
+          proofLine += 1;
+          const pathBefore = scopes.map(x => x.id);
+          const top = scopes[scopes.length - 1];
+          try {
+            const command = parseCommand(raw);
+            let ast = command.ast || null;
+            const surfaceAst = command.surfaceAst || null;
+            const expansionDetail = surfaceAst && !sameFormula(surfaceAst, ast) ? `${formatFormula(surfaceAst)} expands to ${formatFormula(ast)}.` : "";
+            if (expansionDetail) expansionNotes[physical] = `≡ ${formatFormula(ast)}`;
+            let sourcePath = [...pathBefore];
+            let usable = true;
+            let meta = {};
+            let message = "";
+
+            if (command.kind === "ug_open") {
+              const used = outerFormulas.some(x => containsTerm(x, command.name)) || [...sources.values()].some(x => containsTerm(x.ast, command.name));
+              if (used) throw new Error(`${command.name} is already used. Choose a fresh name for the arbitrary ${command.domain}.`);
+              const expected = currentGoalState(goalSurface, goal, scopes).expanded;
+              if (expected?.type === "forall" && !sameType(expected.domain, command.domain)) throw new Error(`The current goal quantifies over ${expected.domain}, not ${command.domain}.`);
+              const scope = { id: `scope-${++scopeCounter}`, type: "ug", name: command.name, domain: command.domain, label: `${command.name} is an arbitrary ${command.domain}` };
+              scopes.push(scope);
+              sourcePath = scopes.map(x => x.id);
+              usable = false;
+              meta = { opening: "ug" };
+              message = `opened an arbitrary-${command.domain} world`;
+            } else if (command.kind === "mb_open") {
+              const scope = { id: `scope-${++scopeCounter}`, type: "mb", assumption: ast, surfaceAssumption: surfaceAst, label: `${command.wording || "make believe"} ${formatFormula(surfaceAst || ast)}` };
+              scopes.push(scope);
+              sourcePath = scopes.map(x => x.id);
+              meta = { opening: "mb" };
+              message = `assumed ${formatFormula(surfaceAst || ast)} inside a new world`;
+            } else if (command.kind === "ei_open") {
+              let refs = resolveRefs(command.refsText, proofLine, sources, pathBefore);
+              if (!refs.length) refs = unique(accessibleSources(sources, pathBefore).filter(x => x.ast.type === "exists" && instantiationTerm(x.ast.body, ast, x.ast.variable) === command.witness), "No existential statement supports this witness assumption.", "More than one existential statement could introduce this witness");
+              if (refs.length !== 1 || refs[0].ast.type !== "exists") throw new Error("EI needs one existential source.");
+              const witness = instantiationTerm(refs[0].ast.body, ast, refs[0].ast.variable);
+              if (witness !== command.witness) throw new Error(`${formatFormula(ast)} is not the result of naming the witness ${command.witness}.`);
+              const used = outerFormulas.some(x => containsTerm(x, command.witness)) || [...sources.values()].some(x => containsTerm(x.ast, command.witness));
+              if (used) throw new Error(`${command.witness} is not a fresh witness name.`);
+              const scope = { id: `scope-${++scopeCounter}`, type: "ei", witness: command.witness, label: `${command.witness} is an existential witness` };
+              scopes.push(scope);
+              sourcePath = scopes.map(x => x.id);
+              meta = { opening: "ei" };
+              message = `opened a witness world from ${refs[0].ref}`;
+            } else if (command.kind === "case_left" || command.kind === "case_right") {
+              const refs = resolveRefs(command.refsText, proofLine, sources, pathBefore);
+              if (refs.length !== 1 || refs[0].ast.type !== "or") throw new Error("Beginning a case needs one reference to a disjunction.");
+              const side = command.kind === "case_left" ? "left" : "right";
+              if (!sameFormula(ast, refs[0].ast[side])) throw new Error(`The ${side} case must assume ${formatFormula(refs[0].ast[side])}.`);
+              const scope = { id: `scope-${++scopeCounter}`, type: "case", side, assumption: ast, surfaceAssumption: surfaceAst, disjunctionRef: refs[0].ref, label: `${side} case: ${formatFormula(surfaceAst || ast)}` };
+              scopes.push(scope);
+              sourcePath = scopes.map(x => x.id);
+              meta = { opening: "case" };
+              message = `opened the ${side} case from ${refs[0].ref}`;
+            } else {
+              let refs = resolveRefs(command.refsText, proofLine, sources, pathBefore, command.rule === "cases");
+              if (!refs.length) refs = inferRefs(command.rule, ast, sources, pathBefore, top);
+              message = validateRule(command.rule, ast, refs, { top, sources, path: pathBefore });
+              if (["mb", "ug", "ei", "case_close"].includes(command.rule)) {
+                const closed = scopes.pop();
+                sourcePath = scopes.map(x => x.id);
+                if (command.rule === "case_close") {
+                  usable = false;
+                  meta = { caseSummary: true, side: closed.side, disjunctionRef: closed.disjunctionRef };
+                }
+              }
+            }
+
+            const ref = String(proofLine);
+            sources.set(ref, { ref, line: proofLine, ast, surfaceAst, scopePath: sourcePath, usable, meta });
+            if (ast && !sourcePath.length && usable) lastOuter = ast;
+            diagnostic("ok", proofLine, `✓ ${message}`, expansionDetail);
+            lineStatuses[physical] = { kind: "ok", line: proofLine, message };
+          } catch (error) {
+            failed = { line: proofLine, physical, message: error.message };
+            diagnostic("error", proofLine, `✗ ${error.message}`);
+            lineStatuses[physical] = { kind: "error", line: proofLine, message: error.message };
+            for (let rest = physical + 1; rest < physicalLines.length; rest += 1) {
+              if (physicalLines[rest].trim() && !/^\s*(?:#|\/\/)/.test(physicalLines[rest])) diagnostic("muted", "", "not checked because compilation stopped above");
+            }
+            break;
+          }
+        }
+
+        if (!proofLine) diagnostic("info", 0, "Type the first proof command. The compiler will check it immediately.");
+        renderLineStatuses(lineStatuses);
+        els.expansions.textContent = expansionNotes.join("\n");
+        const target = currentGoalState(goalSurface, goal, scopes);
+        renderGoal(target);
+        renderWorlds(scopes);
+        const complete = !failed && !scopes.length && sameFormula(lastOuter, goal);
+        renderGoalProgress(!failed ? nextPopSuggestion(goalSurface, goal, scopes, sources) : null, complete);
+
+        if (failed) {
+          els.source.setAttribute("aria-invalid", "true");
+          finish(`stopped at line ${failed.line}`, target, scopes, failed.message, announce);
+        } else if (scopes.length) {
+          finish(`${proofLine} lines valid`, target, scopes, `The proof is valid so far. ${scopes.length === 1 ? "One pretend world is" : `${scopes.length} pretend worlds are`} still open.`, announce, "pending");
+        } else if (sameFormula(lastOuter, goal)) {
+          finish(`${proofLine} lines compiled`, { surface: goalSurface, expanded: goal }, scopes, `Proof checks out: ${formatFormula(goalSurface)}`, announce, "success");
+        } else {
+          finish(`${proofLine} lines valid`, { surface: goalSurface, expanded: goal }, scopes, `The valid lines do not yet finish with the goal ${formatFormula(goalSurface)}.`, announce, "pending");
+        }
+      }
+
+      function finish(summary, target, scopes, message, announce, kind = "error") {
+        els.summary.textContent = summary;
+        if (target) renderGoal(target.surface ? target : { surface: target, expanded: target });
+        if (!scopes.length) renderWorlds([]);
+        const banner = document.createElement("div");
+        banner.className = kind === "success" ? "success-banner" : kind === "error" ? "error-banner" : "";
+        if (banner.className) { banner.textContent = message; els.result.append(banner); }
+        if (announce) { els.announcer.textContent = ""; window.setTimeout(() => { els.announcer.textContent = `${summary}. ${message}`; }, 20); }
+      }
+
+      function scheduleCompile() { window.clearTimeout(compileTimer); compileTimer = window.setTimeout(() => compile(), 280); }
+      function handleInput(event) {
+        convertAtCaret(event.currentTarget);
+        if (event.currentTarget === els.source) formatProofIndentation();
+        updateNumbers(); updateAxiomNumbers(); scheduleCompile();
+      }
+      [els.definitions, els.axioms, els.goal, els.source].forEach(input => {
+        input.addEventListener("focus", () => { activeInput = input; });
+        input.addEventListener("input", handleInput);
+      });
+      els.source.addEventListener("scroll", () => { els.numbers.scrollTop = els.source.scrollTop; els.rails.scrollTop = els.source.scrollTop; els.statuses.scrollTop = els.source.scrollTop; els.expansions.scrollTop = els.source.scrollTop; });
+      els.axioms.addEventListener("scroll", () => { els.axiomNumbers.scrollTop = els.axioms.scrollTop; });
+      els.source.addEventListener("keydown", event => {
+        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); compile({ announce: true }); }
+        else if (event.key === "Enter") {
+          event.preventDefault();
+          const start = els.source.selectionStart, end = els.source.selectionEnd;
+          const lineIndex = els.source.value.slice(0, start).split("\n").length - 1;
+          const lines = els.source.value.split("\n");
+          const item = proofLayout(lines)[lineIndex] || { depth: 0 };
+          const current = lines[lineIndex] || "";
+          const nextDepth = item.depth + (isWorldOpener(current) ? 1 : 0);
+          els.source.setRangeText(`\n${"  ".repeat(nextDepth)}`, start, end, "end");
+          updateNumbers(); scheduleCompile();
+        }
+        if (event.key === "Tab") {
+          event.preventDefault();
+          const start = els.source.selectionStart, end = els.source.selectionEnd;
+          els.source.setRangeText("  ", start, end, "end");
+          scheduleCompile();
+        }
+      });
+      document.querySelectorAll("[data-insert]").forEach(button => button.addEventListener("click", () => {
+        const input = activeInput?.isConnected ? activeInput : els.source;
+        const start = input.selectionStart ?? input.value.length, end = input.selectionEnd ?? start;
+        input.setRangeText(button.dataset.insert, start, end, "end");
+        input.focus(); updateNumbers(); scheduleCompile();
+      }));
+      document.getElementById("compile").addEventListener("click", () => compile({ announce: true }));
+      els.addPopLine.addEventListener("click", () => {
+        if (!pendingPopLine) return;
+        const separator = els.source.value && !els.source.value.endsWith("\n") ? "\n" : "";
+        els.source.value += `${separator}${pendingPopLine}`;
+        els.source.setSelectionRange(els.source.value.length, els.source.value.length);
+        formatProofIndentation();
+        updateNumbers();
+        compile({ announce: true });
+        els.source.focus();
+      });
+      document.getElementById("load-example").addEventListener("click", () => {
+        els.definitions.value = "FAS(c) = (∀ d in Creatures)(S(d) → F(c, d))\nFAM(c) = (∀ d in Creatures)(M(d) → F(c, d))";
+        els.axioms.value = "(∀ c in Creatures) (S(c) → M(c))";
+        els.goal.value = "(∀ c in Creatures) (FAM(c) → FAS(c))";
+        els.source.value = "Pretend Bob is a Creature.\n  Make believe FAM(Bob).\n    Pretend Ari is a Creature.\n      Make believe S(Ari).\n        S(Ari) → M(Ari) by UI I\n        M(Ari) by detachment 4, 5\n        M(Ari) → F(Bob, Ari) by UI 2\n        F(Bob, Ari) by detachment 6, 7\n      therefore S(Ari) → F(Bob, Ari) by MB 8\n    therefore FAS(Bob) by UG 9\n  therefore FAM(Bob) → FAS(Bob) by MB 10\ntherefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11";
+        updateNumbers(); updateAxiomNumbers(); compile({ announce: true });
+      });
+      document.getElementById("clear-proof").addEventListener("click", () => { els.source.value = ""; updateNumbers(); compile({ announce: true }); els.source.focus(); });
+
+      updateNumbers();
+      updateAxiomNumbers();
+      compile();
+    })();
+  </script>
+</body>
+</html>

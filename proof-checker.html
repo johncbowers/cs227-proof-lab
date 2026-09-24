@@ -1,0 +1,1385 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A browser-based proof checker for CS 227 formal proofs.">
+  <meta name="theme-color" content="#16233f">
+  <title>CS 227 Proof Checker</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='13' fill='%2316233f'/%3E%3Cpath d='M16 33l10 10 22-25' fill='none' stroke='%237dd3fc' stroke-width='7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --navy-950: #0d172b;
+      --navy-900: #16233f;
+      --navy-800: #213456;
+      --blue-700: #1769aa;
+      --blue-600: #1879bd;
+      --blue-100: #dff3ff;
+      --blue-50: #f1f9ff;
+      --teal-700: #17626b;
+      --teal-100: #def5f4;
+      --amber-700: #92500c;
+      --amber-100: #ffedc6;
+      --green-700: #23724b;
+      --green-100: #dff5e9;
+      --red-700: #9e3232;
+      --red-100: #fde6e6;
+      --ink: #172033;
+      --muted: #5b6578;
+      --line: #c9d2df;
+      --canvas: #eef3f9;
+      --paper: #fff;
+      --shadow: 0 12px 28px rgb(29 45 73 / .1);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+
+    .skip-link {
+      position: fixed;
+      top: .5rem;
+      left: .5rem;
+      z-index: 20;
+      padding: .55rem .75rem;
+      transform: translateY(-150%);
+      border-radius: 7px;
+      background: white;
+      color: var(--navy-900);
+      font-weight: 800;
+    }
+
+    .skip-link:focus { transform: translateY(0); }
+
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: .85rem clamp(1rem, 3vw, 2rem);
+      border-bottom: 4px solid #54b8e9;
+      background: var(--navy-900);
+      color: white;
+    }
+
+    .brand { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      flex: 0 0 auto;
+      border: 2px solid #7dd3fc;
+      border-radius: 10px;
+      color: #7dd3fc;
+      font-family: Georgia, serif;
+      font-size: 1.35rem;
+      font-weight: 900;
+    }
+
+    .brand h1 { margin: 0; font-size: 1.25rem; line-height: 1.1; }
+    .brand p { margin: .12rem 0 0; color: #c9e9f8; font-size: .82rem; }
+
+    .suite-link {
+      color: #bce9ff;
+      font-size: .84rem;
+      font-weight: 800;
+      text-underline-offset: .18rem;
+      white-space: nowrap;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(255px, .75fr) minmax(560px, 1.65fr);
+      gap: 1rem;
+      width: min(1450px, 100%);
+      margin: 0 auto;
+      padding: 1rem;
+      align-items: start;
+    }
+
+    .panel {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .setup-column { display: grid; gap: 1rem; position: sticky; top: 1rem; }
+
+    .panel-header {
+      padding: 1rem;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #fff, #f6f9fc);
+    }
+
+    .panel-header h2 { margin: 0; color: var(--navy-900); font-size: 1.08rem; }
+    .panel-header p { margin: .25rem 0 0; color: var(--muted); font-size: .86rem; }
+    .panel-body { padding: 1rem; }
+
+    .field-label {
+      display: block;
+      margin-bottom: .3rem;
+      color: var(--navy-800);
+      font-size: .78rem;
+      font-weight: 850;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+    }
+
+    .formula-input,
+    .refs-input,
+    .reason-select {
+      width: 100%;
+      border: 1px solid #9fb0c5;
+      border-radius: 7px;
+      background: white;
+      color: var(--ink);
+    }
+
+    .formula-input {
+      min-height: 43px;
+      padding: .55rem .65rem;
+      resize: vertical;
+      font-family: "STIX Two Math", "Cambria Math", Cambria, Georgia, serif;
+      font-size: 1rem;
+      line-height: 1.35;
+    }
+
+    .formula-input:focus,
+    .refs-input:focus,
+    .reason-select:focus,
+    button:focus-visible,
+    summary:focus-visible,
+    a:focus-visible {
+      outline: 3px solid #7bc7f0;
+      outline-offset: 2px;
+    }
+
+    [aria-invalid="true"] { border-color: var(--red-700); background: #fffafa; }
+
+    .axiom-list { display: grid; gap: .55rem; }
+
+    .axiom-row {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      gap: .4rem;
+      align-items: start;
+    }
+
+    .axiom-name {
+      padding-top: .65rem;
+      color: var(--blue-700);
+      font-size: .77rem;
+      font-weight: 900;
+    }
+
+    .remove-button {
+      min-width: 42px;
+      min-height: 42px;
+      border: 1px solid #d5a0a0;
+      border-radius: 7px;
+      background: #fff8f8;
+      color: #812d2d;
+      font-weight: 900;
+    }
+
+    .secondary-button,
+    .small-button {
+      min-height: 40px;
+      padding: .45rem .7rem;
+      border: 1px solid #91a7bf;
+      border-radius: 7px;
+      background: white;
+      color: var(--navy-800);
+      font-size: .84rem;
+      font-weight: 800;
+    }
+
+    .secondary-button:hover,
+    .small-button:hover { background: #edf5ff; }
+
+    .button-row { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .65rem; }
+
+    .goal-field { margin-top: 1rem; }
+
+    .symbol-panel {
+      margin-top: 1rem;
+      padding: .75rem;
+      border: 1px solid #b8c9dc;
+      border-radius: 9px;
+      background: var(--blue-50);
+    }
+
+    .symbol-panel h3 { margin: 0 0 .45rem; color: var(--navy-800); font-size: .86rem; }
+    .symbol-buttons { display: flex; flex-wrap: wrap; gap: .35rem; }
+
+    .symbol-button {
+      min-width: 42px;
+      min-height: 38px;
+      padding: .3rem .55rem;
+      border: 1px solid #8aa4bf;
+      border-radius: 6px;
+      background: white;
+      color: var(--navy-900);
+      font-family: "STIX Two Math", "Cambria Math", Cambria, Georgia, serif;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .shorthand {
+      margin: .55rem 0 0;
+      color: #46556c;
+      font-size: .78rem;
+    }
+
+    code {
+      padding: .06rem .2rem;
+      border-radius: 4px;
+      background: #e8eef6;
+      color: #263750;
+      font-size: .92em;
+    }
+
+    details {
+      border-top: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    summary {
+      padding: .8rem 1rem;
+      color: var(--navy-800);
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .rule-help { padding: 0 1rem 1rem; color: #46536a; font-size: .82rem; }
+    .rule-help ul { margin: .45rem 0 0; padding-left: 1.2rem; }
+    .rule-help li + li { margin-top: .25rem; }
+
+    .proof-panel { min-width: 0; }
+
+    .proof-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      padding: .75rem 1rem;
+      border-bottom: 1px solid var(--line);
+      background: #f8fafc;
+    }
+
+    .toolbar-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+
+    .check-button {
+      min-height: 42px;
+      padding: .5rem .9rem;
+      border: 1px solid #0e5388;
+      border-radius: 7px;
+      background: var(--blue-700);
+      color: white;
+      font-weight: 850;
+    }
+
+    .check-button:hover { background: #0f5489; }
+
+    .proof-table-head,
+    .proof-row-main {
+      display: grid;
+      grid-template-columns: 54px minmax(210px, 1.25fr) minmax(180px, .9fr) minmax(105px, .48fr) 44px;
+      gap: .5rem;
+      align-items: start;
+    }
+
+    .proof-table-head {
+      padding: .55rem 1rem;
+      border-bottom: 1px solid var(--line);
+      background: #edf3f8;
+      color: #43516a;
+      font-size: .74rem;
+      font-weight: 850;
+      letter-spacing: .035em;
+      text-transform: uppercase;
+    }
+
+    .proof-lines { min-height: 330px; }
+
+    .proof-row {
+      padding: .7rem 1rem;
+      border-bottom: 1px solid #d8e1eb;
+      background: white;
+    }
+
+    .proof-row:last-child { border-bottom: 0; }
+
+    .line-number {
+      display: flex;
+      align-items: flex-start;
+      gap: .15rem;
+      padding-top: .62rem;
+      color: #526078;
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+    }
+
+    .scope-rails { color: #1882ba; font-family: monospace; font-weight: 900; letter-spacing: -.12rem; }
+
+    .reason-select,
+    .refs-input { min-height: 43px; padding: .5rem .55rem; font-size: .85rem; }
+
+    .line-status {
+      min-height: 1.25rem;
+      margin: .38rem 0 0 54px;
+      padding-left: .5rem;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+
+    .line-status.valid { color: var(--green-700); font-weight: 750; }
+    .line-status.error { color: var(--red-700); font-weight: 750; }
+    .line-status.pending { color: var(--amber-700); }
+
+    .empty-proof {
+      margin: 2.5rem 1rem;
+      padding: 1rem;
+      border: 1px dashed #aebdce;
+      border-radius: 9px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .result-region { padding: 1rem; border-top: 1px solid var(--line); background: #f7f9fc; }
+
+    .result-card {
+      padding: .85rem 1rem;
+      border: 1px solid #c2cfdd;
+      border-left: 5px solid #7b8ba1;
+      border-radius: 9px;
+      background: white;
+    }
+
+    .result-card h3 { margin: 0; color: var(--navy-900); font-size: 1rem; }
+    .result-card p { margin: .25rem 0 0; color: #4c596f; font-size: .88rem; }
+    .result-card.success { border-left-color: var(--green-700); background: #f1fbf5; }
+    .result-card.error { border-left-color: var(--red-700); background: #fff8f8; }
+    .result-card.pending { border-left-color: #bd771e; background: #fffaf1; }
+
+    .formula-preview {
+      margin-top: .6rem;
+      padding: .55rem .65rem;
+      border-radius: 7px;
+      background: #edf3f8;
+      color: #213456;
+      font-family: "STIX Two Math", "Cambria Math", Cambria, Georgia, serif;
+      overflow-wrap: anywhere;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 1060px) {
+      .workspace { grid-template-columns: 1fr; }
+      .setup-column { position: static; grid-template-columns: minmax(260px, 1fr) minmax(260px, 1fr); }
+    }
+
+    @media (max-width: 760px) {
+      .app-header { align-items: flex-start; }
+      .workspace { padding: .65rem; }
+      .setup-column { grid-template-columns: 1fr; }
+      .proof-table-head { display: none; }
+      .proof-row-main { grid-template-columns: 42px minmax(0, 1fr) 42px; }
+      .statement-cell { grid-column: 2; }
+      .reason-cell { grid-column: 2; }
+      .refs-cell { grid-column: 2; }
+      .remove-line { grid-column: 3; grid-row: 1; }
+      .reason-cell::before,
+      .refs-cell::before {
+        display: block;
+        margin-bottom: .2rem;
+        color: #526078;
+        font-size: .72rem;
+        font-weight: 850;
+        text-transform: uppercase;
+      }
+      .reason-cell::before { content: "Reason"; }
+      .refs-cell::before { content: "References"; }
+      .line-status { margin-left: 42px; }
+    }
+
+    @media (max-width: 480px) {
+      .app-header { display: block; }
+      .suite-link { display: inline-block; margin-top: .65rem; }
+      .proof-toolbar { align-items: flex-start; }
+      .toolbar-actions { width: 100%; }
+      .toolbar-actions button { flex: 1 1 auto; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#proof-editor">Skip to proof editor</a>
+
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">✓</div>
+      <div>
+        <h1>Proof Checker</h1>
+        <p>Write a complete proof and check each move.</p>
+      </div>
+    </div>
+    <a class="suite-link" href="./">← All proof tools</a>
+  </header>
+
+  <main class="workspace">
+    <div class="setup-column">
+      <section class="panel" aria-labelledby="problem-heading">
+        <div class="panel-header">
+          <h2 id="problem-heading">Axioms and goal</h2>
+          <p>Enter the statements you may use, then the statement you intend to prove.</p>
+        </div>
+        <div class="panel-body">
+          <span class="field-label">Axioms</span>
+          <div class="axiom-list" id="axiom-list"></div>
+          <div class="button-row">
+            <button class="secondary-button" id="add-axiom" type="button">Add an axiom</button>
+            <button class="secondary-button" id="load-example" type="button">Load example</button>
+          </div>
+
+          <div class="goal-field">
+            <label class="field-label" for="goal-input">Goal to prove</label>
+            <textarea class="formula-input" id="goal-input" rows="2" spellcheck="false"></textarea>
+            <div class="formula-preview" id="goal-preview" aria-live="polite">Enter a goal.</div>
+          </div>
+
+          <div class="symbol-panel">
+            <h3>Logical symbols</h3>
+            <div class="symbol-buttons" role="group" aria-label="Insert logical symbols">
+              <button class="symbol-button" type="button" data-insert="(∀ c)()" data-back="1" aria-label="Insert for every c template">∀ c</button>
+              <button class="symbol-button" type="button" data-insert="(∃ c)()" data-back="1" aria-label="Insert there exists c template">∃ c</button>
+              <button class="symbol-button" type="button" data-insert="¬" aria-label="Insert not">¬</button>
+              <button class="symbol-button" type="button" data-insert=" ∧ " aria-label="Insert and">∧</button>
+              <button class="symbol-button" type="button" data-insert=" ∨ " aria-label="Insert or">∨</button>
+              <button class="symbol-button" type="button" data-insert=" → " aria-label="Insert implies">→</button>
+              <button class="symbol-button" type="button" data-insert=" ↔ " aria-label="Insert if and only if">↔</button>
+              <button class="symbol-button" type="button" data-insert="∴ " aria-label="Insert therefore">∴</button>
+            </div>
+            <p class="shorthand">Shorthand changes as you type: <code>\forall</code>, <code>\exists</code>, <code>/\</code>, <code>\/</code>, <code>-&gt;</code>, <code>&lt;-&gt;</code>, and <code>\neg</code>.</p>
+          </div>
+        </div>
+
+        <details>
+          <summary>Supported proof moves</summary>
+          <div class="rule-help">
+            <ul>
+              <li>Universal and existential instantiation/generalization</li>
+              <li>Make-believe, detachment, and arbitrary-object worlds</li>
+              <li>And introduction/elimination</li>
+              <li>Or introduction and proof by cases</li>
+              <li>De Morgan’s laws and double negation</li>
+              <li>If-and-only-if introduction/elimination</li>
+            </ul>
+            <p>References may name axioms such as <code>A1</code> and earlier proof lines such as <code>2, 4</code>. A closing move may omit its reference to use the most recent formula inside that world.</p>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <section class="panel proof-panel" id="proof-editor" aria-labelledby="proof-heading">
+      <div class="panel-header">
+        <h2 id="proof-heading">Your proof</h2>
+        <p>Choose the justification for each line. The checker tracks which pretend world each line belongs to.</p>
+      </div>
+
+      <div class="proof-toolbar">
+        <div class="toolbar-actions">
+          <button class="secondary-button" id="add-line" type="button">Add a proof line</button>
+          <button class="secondary-button" id="clear-proof" type="button">Clear proof</button>
+        </div>
+        <button class="check-button" id="check-proof" type="button">Check proof</button>
+      </div>
+
+      <div class="proof-table-head" aria-hidden="true">
+        <span>Line</span>
+        <span>Statement or name</span>
+        <span>Reason</span>
+        <span>References</span>
+        <span></span>
+      </div>
+
+      <div class="proof-lines" id="proof-lines"></div>
+      <div class="result-region" id="result-region" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <div class="sr-only" id="announcer" aria-live="polite"></div>
+
+  <template id="proof-row-template">
+    <div class="proof-row">
+      <div class="proof-row-main">
+        <div class="line-number"><span class="scope-rails" aria-hidden="true"></span><span class="number-text"></span></div>
+        <div class="statement-cell">
+          <label class="sr-only statement-label"></label>
+          <textarea class="formula-input statement-input" rows="2" spellcheck="false"></textarea>
+        </div>
+        <div class="reason-cell">
+          <label class="sr-only reason-label"></label>
+          <select class="reason-select">
+            <option value="">Choose a reason</option>
+            <option value="axiom">Axiom</option>
+            <option value="ui">Universal instantiation (UI)</option>
+            <option value="detach">Detachment</option>
+            <option value="ug_open">UG: begin arbitrary object</option>
+            <option value="ug_close">UG: conclude and pop out</option>
+            <option value="mb_open">Make-believe: assume</option>
+            <option value="mb_close">Make-believe: conclude and pop out</option>
+            <option value="ei_open">EI: name a witness</option>
+            <option value="ei_close">EI: conclude and pop out</option>
+            <option value="eg">Existential generalization (EG)</option>
+            <option value="and_i">And introduction</option>
+            <option value="and_e">And elimination</option>
+            <option value="or_i">Or introduction</option>
+            <option value="case_left">Proof by cases: begin left case</option>
+            <option value="case_right">Proof by cases: begin right case</option>
+            <option value="case_close">Proof by cases: finish this case</option>
+            <option value="cases">Proof by cases: conclude</option>
+            <option value="demorgan">De Morgan’s law</option>
+            <option value="dn">Double negation</option>
+            <option value="iff_i">If-and-only-if introduction</option>
+            <option value="iff_e">If-and-only-if elimination</option>
+          </select>
+        </div>
+        <div class="refs-cell">
+          <label class="sr-only refs-label"></label>
+          <input class="refs-input" type="text" spellcheck="false" placeholder="A1, 2">
+        </div>
+        <button class="remove-button remove-line" type="button">×</button>
+      </div>
+      <div class="line-status"></div>
+    </div>
+  </template>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const els = {
+        axiomList: document.getElementById("axiom-list"),
+        addAxiom: document.getElementById("add-axiom"),
+        loadExample: document.getElementById("load-example"),
+        goalInput: document.getElementById("goal-input"),
+        goalPreview: document.getElementById("goal-preview"),
+        proofLines: document.getElementById("proof-lines"),
+        addLine: document.getElementById("add-line"),
+        clearProof: document.getElementById("clear-proof"),
+        checkProof: document.getElementById("check-proof"),
+        resultRegion: document.getElementById("result-region"),
+        announcer: document.getElementById("announcer"),
+        rowTemplate: document.getElementById("proof-row-template")
+      };
+
+      let activeFormulaInput = els.goalInput;
+      let checkTimer = null;
+
+      const reasonNames = {
+        axiom: "Axiom",
+        ui: "Universal instantiation",
+        detach: "Detachment",
+        ug_open: "Begin an arbitrary-object world",
+        ug_close: "Universal generalization",
+        mb_open: "Make-believe assumption",
+        mb_close: "Make-believe conclusion",
+        ei_open: "Existential instantiation",
+        ei_close: "Close the witness world",
+        eg: "Existential generalization",
+        and_i: "And introduction",
+        and_e: "And elimination",
+        or_i: "Or introduction",
+        case_left: "Begin the left case",
+        case_right: "Begin the right case",
+        case_close: "Finish a case",
+        cases: "Proof by cases",
+        demorgan: "De Morgan’s law",
+        dn: "Double negation",
+        iff_i: "If-and-only-if introduction",
+        iff_e: "If-and-only-if elimination"
+      };
+
+      function announce(message) {
+        els.announcer.textContent = "";
+        window.setTimeout(() => { els.announcer.textContent = message; }, 20);
+      }
+
+      function convertShorthand(value) {
+        return String(value || "")
+          .replace(/\\forall\b/g, "∀")
+          .replace(/\\exists\b/g, "∃")
+          .replace(/\\neg\b/g, "¬")
+          .replace(/<->/g, "↔")
+          .replace(/->/g, "→")
+          .replace(/\/\\/g, "∧")
+          .replace(/\\\//g, "∨");
+      }
+
+      function convertInputAtCaret(input) {
+        const before = input.value;
+        const start = input.selectionStart ?? before.length;
+        const prefix = before.slice(0, start);
+        const converted = convertShorthand(before);
+        if (converted === before) return;
+        const convertedPrefix = convertShorthand(prefix);
+        input.value = converted;
+        input.setSelectionRange(convertedPrefix.length, convertedPrefix.length);
+      }
+
+      function normalizeQuantifierWrappers(text) {
+        return text.replace(/\(\s*([∀∃])\s*([A-Za-z][A-Za-z0-9_]*)\s*\)/g, "$1 $2 ");
+      }
+
+      class FormulaParser {
+        constructor(raw) {
+          this.text = normalizeQuantifierWrappers(convertShorthand(raw)).trim().replace(/^(?:∴|therefore\b)\s*/i, "");
+          this.pos = 0;
+        }
+
+        error(message) {
+          throw new Error(`${message} near character ${Math.min(this.pos + 1, this.text.length + 1)}.`);
+        }
+
+        skip() { while (/\s/.test(this.text[this.pos] || "")) this.pos += 1; }
+
+        consume(symbol) {
+          this.skip();
+          if (this.text.startsWith(symbol, this.pos)) {
+            this.pos += symbol.length;
+            return true;
+          }
+          return false;
+        }
+
+        parse() {
+          if (!this.text) throw new Error("Enter a statement.");
+          const result = this.parseIff();
+          this.skip();
+          if (this.pos !== this.text.length) this.error(`Unexpected “${this.text[this.pos]}”`);
+          return result;
+        }
+
+        parseIff() {
+          let left = this.parseImp();
+          while (this.consume("↔")) left = { type: "iff", left, right: this.parseImp() };
+          return left;
+        }
+
+        parseImp() {
+          const left = this.parseOr();
+          return this.consume("→") ? { type: "imp", left, right: this.parseImp() } : left;
+        }
+
+        parseOr() {
+          let left = this.parseAnd();
+          while (this.consume("∨")) left = { type: "or", left, right: this.parseAnd() };
+          return left;
+        }
+
+        parseAnd() {
+          let left = this.parseUnary();
+          while (this.consume("∧")) left = { type: "and", left, right: this.parseUnary() };
+          return left;
+        }
+
+        parseUnary() {
+          this.skip();
+          if (this.consume("¬")) return { type: "not", value: this.parseUnary() };
+          if (this.consume("∀")) return this.parseQuantifier("forall");
+          if (this.consume("∃")) return this.parseQuantifier("exists");
+          if (this.consume("(")) {
+            const inside = this.parseIff();
+            if (!this.consume(")")) this.error("A closing parenthesis is missing");
+            return inside;
+          }
+          return this.parseAtom();
+        }
+
+        parseQuantifier(type) {
+          this.skip();
+          const match = this.text.slice(this.pos).match(/^([A-Za-z][A-Za-z0-9_]*)/);
+          if (!match) this.error("A quantifier needs a variable name");
+          this.pos += match[1].length;
+          this.consume(".");
+          return { type, variable: match[1], body: this.parseUnary() };
+        }
+
+        parseAtom() {
+          this.skip();
+          const start = this.pos;
+          let depth = 0;
+          while (this.pos < this.text.length) {
+            const char = this.text[this.pos];
+            if (char === "(") { depth += 1; this.pos += 1; continue; }
+            if (char === ")") {
+              if (depth === 0) break;
+              depth -= 1;
+              this.pos += 1;
+              continue;
+            }
+            if (depth === 0 && ["¬", "∧", "∨", "→", "↔", "∀", "∃"].includes(char)) break;
+            this.pos += 1;
+          }
+          if (depth !== 0) this.error("A closing parenthesis is missing");
+          const raw = this.text.slice(start, this.pos).trim();
+          if (!raw) this.error("A statement is missing");
+          return { type: "atom", value: normalizeAtom(raw) };
+        }
+      }
+
+      function normalizeAtom(raw) {
+        return raw
+          .replace(/\s+/g, " ")
+          .replace(/\s*([(),])\s*/g, "$1")
+          .replace(/\s*([=<>≤≥+*])\s*/g, " $1 ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function parseFormula(text) { return new FormulaParser(text).parse(); }
+
+      const precedence = { iff: 1, imp: 2, or: 3, and: 4, not: 5, forall: 5, exists: 5, atom: 6 };
+
+      function formatFormula(ast, parent = 0) {
+        let text;
+        if (ast.type === "atom") text = ast.value;
+        else if (ast.type === "not") text = `¬${formatFormula(ast.value, precedence.not)}`;
+        else if (ast.type === "forall" || ast.type === "exists") {
+          const symbol = ast.type === "forall" ? "∀" : "∃";
+          const body = formatFormula(ast.body);
+          text = `(${symbol} ${ast.variable})${ast.body.type === "atom" || ast.body.type === "not" ? body : `(${body})`}`;
+        } else {
+          const symbol = { and: "∧", or: "∨", imp: "→", iff: "↔" }[ast.type];
+          const p = precedence[ast.type];
+          const left = formatFormula(ast.left, p);
+          const right = formatFormula(ast.right, ast.type === "imp" ? p - 1 : p);
+          text = `${left} ${symbol} ${right}`;
+        }
+        return precedence[ast.type] < parent ? `(${text})` : text;
+      }
+
+      function formulaKey(ast) { return JSON.stringify(ast); }
+      function sameFormula(a, b) { return Boolean(a && b && formulaKey(a) === formulaKey(b)); }
+
+      function escapeRegExp(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+      function substitute(ast, variable, term) {
+        if (ast.type === "atom") {
+          const pattern = new RegExp(`\\b${escapeRegExp(variable)}\\b`, "g");
+          return { type: "atom", value: ast.value.replace(pattern, term) };
+        }
+        if (ast.type === "not") return { type: "not", value: substitute(ast.value, variable, term) };
+        if (ast.type === "forall" || ast.type === "exists") {
+          if (ast.variable === variable) return ast;
+          return { ...ast, body: substitute(ast.body, variable, term) };
+        }
+        return { ...ast, left: substitute(ast.left, variable, term), right: substitute(ast.right, variable, term) };
+      }
+
+      function collectTerms(ast, result = new Set()) {
+        if (ast.type === "atom") {
+          const matches = ast.value.match(/[A-Za-z][A-Za-z0-9_]*|-?\d+(?:\.\d+)?/g) || [];
+          matches.forEach(term => result.add(term));
+        } else if (ast.type === "not") collectTerms(ast.value, result);
+        else if (ast.type === "forall" || ast.type === "exists") collectTerms(ast.body, result);
+        else { collectTerms(ast.left, result); collectTerms(ast.right, result); }
+        return result;
+      }
+
+      function containsTerm(ast, term) {
+        if (!ast) return false;
+        if (ast.type === "atom") return new RegExp(`\\b${escapeRegExp(term)}\\b`).test(ast.value);
+        if (ast.type === "not") return containsTerm(ast.value, term);
+        if (ast.type === "forall" || ast.type === "exists") return ast.variable === term || containsTerm(ast.body, term);
+        return containsTerm(ast.left, term) || containsTerm(ast.right, term);
+      }
+
+      function instantiationTerm(pattern, result, variable) {
+        if (sameFormula(pattern, result) && !containsTerm(pattern, variable)) return "unchanged";
+        const candidates = [...collectTerms(result), ...collectTerms(pattern)];
+        return candidates.find(term => sameFormula(substitute(pattern, variable, term), result)) || null;
+      }
+
+      function deMorganPartners(ast) {
+        const partners = [];
+        if (ast.type === "not" && ast.value.type === "and") {
+          partners.push({ type: "or", left: { type: "not", value: ast.value.left }, right: { type: "not", value: ast.value.right } });
+        }
+        if (ast.type === "not" && ast.value.type === "or") {
+          partners.push({ type: "and", left: { type: "not", value: ast.value.left }, right: { type: "not", value: ast.value.right } });
+        }
+        if (ast.type === "or" && ast.left.type === "not" && ast.right.type === "not") {
+          partners.push({ type: "not", value: { type: "and", left: ast.left.value, right: ast.right.value } });
+        }
+        if (ast.type === "and" && ast.left.type === "not" && ast.right.type === "not") {
+          partners.push({ type: "not", value: { type: "or", left: ast.left.value, right: ast.right.value } });
+        }
+        return partners;
+      }
+
+      function isPrefix(prefix, whole) {
+        return prefix.length <= whole.length && prefix.every((value, index) => value === whole[index]);
+      }
+
+      function referenceTokens(text) {
+        return (String(text || "").match(/A\d+|\d+/gi) || []).map(token => token.toUpperCase());
+      }
+
+      function renumberAxioms() {
+        [...els.axiomList.children].forEach((row, index) => {
+          const number = index + 1;
+          row.querySelector(".axiom-name").textContent = `A${number}`;
+          const input = row.querySelector(".formula-input");
+          input.id = `axiom-${number}`;
+          input.setAttribute("aria-label", `Axiom ${number}`);
+          const remove = row.querySelector(".remove-button");
+          remove.setAttribute("aria-label", `Remove axiom ${number}`);
+          remove.disabled = els.axiomList.children.length === 1;
+        });
+      }
+
+      function wireFormulaInput(input) {
+        input.addEventListener("focus", () => { activeFormulaInput = input; });
+        input.addEventListener("input", () => {
+          convertInputAtCaret(input);
+          scheduleCheck();
+          if (input === els.goalInput) updateGoalPreview();
+        });
+      }
+
+      function addAxiom(value = "") {
+        const row = document.createElement("div");
+        row.className = "axiom-row";
+        const name = document.createElement("span");
+        name.className = "axiom-name";
+        const input = document.createElement("textarea");
+        input.className = "formula-input";
+        input.rows = 2;
+        input.spellcheck = false;
+        input.value = value;
+        const remove = document.createElement("button");
+        remove.className = "remove-button";
+        remove.type = "button";
+        remove.textContent = "×";
+        remove.addEventListener("click", () => {
+          row.remove();
+          renumberAxioms();
+          scheduleCheck();
+        });
+        row.append(name, input, remove);
+        els.axiomList.append(row);
+        wireFormulaInput(input);
+        renumberAxioms();
+        return input;
+      }
+
+      function rows() { return [...els.proofLines.querySelectorAll(".proof-row")]; }
+
+      function renumberLines() {
+        rows().forEach((row, index) => {
+          const number = index + 1;
+          row.dataset.line = String(number);
+          row.querySelector(".number-text").textContent = `${number}.`;
+          row.querySelector(".statement-input").id = `line-${number}-statement`;
+          row.querySelector(".statement-label").htmlFor = `line-${number}-statement`;
+          row.querySelector(".statement-label").textContent = `Statement or name for line ${number}`;
+          row.querySelector(".reason-select").id = `line-${number}-reason`;
+          row.querySelector(".reason-label").htmlFor = `line-${number}-reason`;
+          row.querySelector(".reason-label").textContent = `Reason for line ${number}`;
+          row.querySelector(".refs-input").id = `line-${number}-refs`;
+          row.querySelector(".refs-label").htmlFor = `line-${number}-refs`;
+          row.querySelector(".refs-label").textContent = `References for line ${number}`;
+          row.querySelector(".remove-line").setAttribute("aria-label", `Remove proof line ${number}`);
+        });
+      }
+
+      function addProofLine(data = {}) {
+        const fragment = els.rowTemplate.content.cloneNode(true);
+        const row = fragment.querySelector(".proof-row");
+        const statement = row.querySelector(".statement-input");
+        const reason = row.querySelector(".reason-select");
+        const refs = row.querySelector(".refs-input");
+        statement.value = data.statement || "";
+        reason.value = data.reason || "";
+        refs.value = data.refs || "";
+        wireFormulaInput(statement);
+        reason.addEventListener("change", () => {
+          updateStatementPlaceholder(row);
+          scheduleCheck();
+        });
+        refs.addEventListener("input", scheduleCheck);
+        row.querySelector(".remove-line").addEventListener("click", () => {
+          row.remove();
+          renumberLines();
+          if (rows().length === 0) renderEmptyProof();
+          scheduleCheck();
+        });
+        els.proofLines.querySelector(".empty-proof")?.remove();
+        els.proofLines.append(row);
+        renumberLines();
+        updateStatementPlaceholder(row);
+        return statement;
+      }
+
+      function updateStatementPlaceholder(row) {
+        const reason = row.querySelector(".reason-select").value;
+        const statement = row.querySelector(".statement-input");
+        statement.placeholder = reason === "ug_open" ? "Bob, or Pretend Bob is an arbitrary creature" : reason === "ei_open" ? "P(Ari)" : "Enter a statement";
+      }
+
+      function renderEmptyProof() {
+        if (rows().length) return;
+        const empty = document.createElement("div");
+        empty.className = "empty-proof";
+        empty.textContent = "Add a proof line, or load the example to see a complete scoped proof.";
+        els.proofLines.append(empty);
+      }
+
+      function setLineStatus(row, kind, message, depth = 0, worlds = []) {
+        const status = row.querySelector(".line-status");
+        status.className = `line-status ${kind}`;
+        status.textContent = message;
+        const rails = row.querySelector(".scope-rails");
+        rails.textContent = "│".repeat(depth);
+        const lineNumber = row.dataset.line;
+        row.setAttribute("aria-label", worlds.length ? `Line ${lineNumber}. Open worlds: ${worlds.join("; ")}.` : `Line ${lineNumber}. Original world.`);
+      }
+
+      function parseProblem() {
+        let problemError = false;
+        const problemInputs = [...els.axiomList.querySelectorAll(".formula-input")];
+        const problemBlank = problemInputs.every(input => !input.value.trim()) && !els.goalInput.value.trim();
+        const axioms = [];
+        if (problemBlank) {
+          problemInputs.forEach(input => input.setAttribute("aria-invalid", "false"));
+          els.goalInput.setAttribute("aria-invalid", "false");
+          return { axioms, goal: null, problemError: false, problemBlank: true };
+        }
+        problemInputs.forEach((input, index) => {
+          try {
+            const ast = parseFormula(input.value);
+            input.setAttribute("aria-invalid", "false");
+            axioms.push({ ref: `A${index + 1}`, label: `Axiom ${index + 1}`, ast, scopePath: [], valid: true, usable: true });
+          } catch (error) {
+            input.setAttribute("aria-invalid", "true");
+            problemError = true;
+          }
+        });
+        let goal = null;
+        try {
+          goal = parseFormula(els.goalInput.value);
+          els.goalInput.setAttribute("aria-invalid", "false");
+        } catch (error) {
+          els.goalInput.setAttribute("aria-invalid", "true");
+          problemError = true;
+        }
+        return { axioms, goal, problemError, problemBlank };
+      }
+
+      function resolveReferences(text, lineNumber, sources, activePath, allowClosed = false) {
+        const tokens = referenceTokens(text);
+        const resolved = [];
+        for (const token of tokens) {
+          const source = sources.get(token);
+          if (!source) throw new Error(`${token} does not name an earlier valid line or axiom.`);
+          if (token[0] !== "A" && Number(token) >= lineNumber) throw new Error(`Line ${token} is not earlier than this line.`);
+          if (!allowClosed && !isPrefix(source.scopePath || [], activePath)) {
+            throw new Error(`${token} belongs to a pretend world that is no longer open.`);
+          }
+          resolved.push(source);
+        }
+        return resolved;
+      }
+
+      function latestFormula(sources, activePath, scopeId = null) {
+        return [...sources.values()]
+          .filter(source => source.line && source.ast && source.usable !== false)
+          .filter(source => isPrefix(source.scopePath || [], activePath))
+          .filter(source => !scopeId || (source.scopePath || []).includes(scopeId))
+          .sort((a, b) => b.line - a.line)[0] || null;
+      }
+
+      function scopeLabels(activeScopes) { return activeScopes.map(scope => scope.label); }
+
+      function checkProof({ focusFirstError = false, announceResult = false } = {}) {
+        window.clearTimeout(checkTimer);
+        const { axioms, goal, problemError, problemBlank } = parseProblem();
+        const sources = new Map(axioms.map(axiom => [axiom.ref, axiom]));
+        const activeScopes = [];
+        const allOuterFormulas = [...axioms.map(item => item.ast), goal].filter(Boolean);
+        let firstErrorInput = null;
+        let errorCount = 0;
+        let lastOuterFormula = null;
+        let scopeCounter = 0;
+
+        rows().forEach((row, index) => {
+          const lineNumber = index + 1;
+          const statementInput = row.querySelector(".statement-input");
+          const reasonSelect = row.querySelector(".reason-select");
+          const refsInput = row.querySelector(".refs-input");
+          const reason = reasonSelect.value;
+          const pathBefore = activeScopes.map(scope => scope.id);
+          const depthBefore = activeScopes.length;
+          let ast = null;
+          let sourcePath = [...pathBefore];
+          let usable = true;
+          let meta = {};
+
+          const fail = (message, input = statementInput) => {
+            errorCount += 1;
+            firstErrorInput ||= input;
+            input.setAttribute("aria-invalid", "true");
+            setLineStatus(row, "error", message, depthBefore, scopeLabels(activeScopes));
+          };
+
+          statementInput.setAttribute("aria-invalid", "false");
+          reasonSelect.setAttribute("aria-invalid", "false");
+          refsInput.setAttribute("aria-invalid", "false");
+
+          if (!reason) {
+            fail("Choose the proof move that justifies this line.", reasonSelect);
+            return;
+          }
+
+          if (reason === "ug_open") {
+            const rawName = statementInput.value.trim();
+            const sentenceMatch = rawName.match(/^Pretend\s+([A-Za-z][A-Za-z0-9_]*)\s+is\s+an\s+arbitrary\s+(?:creature|object)\.?$/i);
+            const name = sentenceMatch ? sentenceMatch[1] : rawName;
+            if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
+              fail("Enter one fresh name, such as Bob, for the arbitrary object.");
+              return;
+            }
+            const usedAlready = allOuterFormulas.some(formula => containsTerm(formula, name)) || [...sources.values()].some(source => containsTerm(source.ast, name));
+            if (usedAlready) {
+              fail(`${name} is not fresh. Choose a name that does not occur in the axioms, goal, or earlier proof lines.`);
+              return;
+            }
+            const scope = { id: `scope-${++scopeCounter}`, type: "ug", name, label: `${name} is an arbitrary object`, openLine: lineNumber };
+            activeScopes.push(scope);
+            sourcePath = activeScopes.map(item => item.id);
+            usable = false;
+            meta = { scopeType: "ug_open", name };
+            setLineStatus(row, "valid", `✓ ${name} is a fresh arbitrary name. The arbitrary-object world is now open.`, depthBefore, scopeLabels(activeScopes.slice(0, -1)));
+            sources.set(String(lineNumber), { ref: String(lineNumber), line: lineNumber, ast: null, scopePath: sourcePath, valid: true, usable, meta });
+            return;
+          }
+
+          try {
+            let statementText = statementInput.value;
+            if (reason === "mb_open") statementText = statementText.replace(/^\s*Make\s+believe\s+/i, "");
+            if (reason === "case_left" || reason === "case_right") {
+              statementText = statementText
+                .replace(/^\s*Case\s*[12]\s*:\s*/i, "")
+                .replace(/^\s*Make\s+believe\s+/i, "");
+            }
+            ast = parseFormula(statementText);
+          } catch (error) {
+            fail(error.message);
+            return;
+          }
+
+          try {
+            const refs = resolveReferences(refsInput.value, lineNumber, sources, pathBefore);
+            const top = activeScopes[activeScopes.length - 1];
+            let message = "";
+
+            if (reason === "axiom") {
+              const candidates = refs.length ? refs : axioms;
+              if (!candidates.some(source => sameFormula(source.ast, ast))) throw new Error("This statement does not match the cited axiom.");
+              message = "✓ This line restates an axiom.";
+            } else if (reason === "ui") {
+              if (refs.length !== 1 || refs[0].ast?.type !== "forall") throw new Error("UI needs one reference to a universal statement.");
+              const term = instantiationTerm(refs[0].ast.body, ast, refs[0].ast.variable);
+              if (!term) throw new Error(`Substitute one object for ${refs[0].ast.variable}; the result does not match this line.`);
+              message = `✓ UI is valid${term === "unchanged" ? "" : `, taking ${refs[0].ast.variable} to ${term}`}.`;
+            } else if (reason === "detach") {
+              if (refs.length !== 2) throw new Error("Detachment needs two references: an if–then statement and its if-part.");
+              const implication = refs.find(source => source.ast?.type === "imp");
+              const antecedent = refs.find(source => source !== implication);
+              if (!implication || !antecedent || !sameFormula(implication.ast.left, antecedent.ast)) throw new Error("The references must contain P → Q and the matching statement P.");
+              if (!sameFormula(ast, implication.ast.right)) throw new Error(`Detachment gives ${formatFormula(implication.ast.right)}, not ${formatFormula(ast)}.`);
+              message = "✓ Detachment is valid.";
+            } else if (reason === "mb_open") {
+              const scope = { id: `scope-${++scopeCounter}`, type: "mb", assumption: ast, label: `Make believe ${formatFormula(ast)}`, openLine: lineNumber };
+              activeScopes.push(scope);
+              sourcePath = activeScopes.map(item => item.id);
+              meta = { scopeType: "mb_open" };
+              message = `✓ Make believe ${formatFormula(ast)}. The make-believe world is now open.`;
+            } else if (reason === "mb_close") {
+              if (!top || top.type !== "mb") throw new Error("There is no open make-believe world to close.");
+              if (ast.type !== "imp" || !sameFormula(ast.left, top.assumption)) throw new Error(`The conclusion must begin with the assumption ${formatFormula(top.assumption)} as its if-part.`);
+              const innerRefs = refs.length ? refs : [latestFormula(sources, pathBefore, top.id)].filter(Boolean);
+              if (innerRefs.length !== 1 || !sameFormula(ast.right, innerRefs[0].ast)) throw new Error(`Establish ${formatFormula(ast.right)} inside the make-believe world before popping out.`);
+              activeScopes.pop();
+              sourcePath = activeScopes.map(item => item.id);
+              message = "✓ The then-part was established inside the make-believe world. You may pop out with this conditional.";
+            } else if (reason === "ug_close") {
+              if (!top || top.type !== "ug") throw new Error("There is no open arbitrary-object world to close.");
+              if (ast.type !== "forall") throw new Error("UG must conclude with a universal statement.");
+              const innerRefs = refs.length ? refs : [latestFormula(sources, pathBefore, top.id)].filter(Boolean);
+              if (innerRefs.length !== 1) throw new Error("Reference the statement proved about the arbitrary object.");
+              const expected = substitute(ast.body, ast.variable, top.name);
+              if (!sameFormula(expected, innerRefs[0].ast)) throw new Error(`The cited line should be ${formatFormula(expected)}, the claim about arbitrary ${top.name}.`);
+              activeScopes.pop();
+              sourcePath = activeScopes.map(item => item.id);
+              message = `✓ Nothing special about ${top.name} was used. UG is valid.`;
+            } else if (reason === "ei_open") {
+              if (refs.length !== 1 || refs[0].ast?.type !== "exists") throw new Error("EI needs one reference to an existential statement.");
+              const witness = instantiationTerm(refs[0].ast.body, ast, refs[0].ast.variable);
+              if (!witness || witness === "unchanged") throw new Error("Replace the quantified variable with a fresh witness name.");
+              const usedAlready = allOuterFormulas.some(formula => containsTerm(formula, witness)) || [...sources.values()].some(source => containsTerm(source.ast, witness));
+              if (usedAlready) throw new Error(`${witness} is not fresh. Use a new name for the unknown witness.`);
+              const scope = { id: `scope-${++scopeCounter}`, type: "ei", witness, label: `${witness} names an existential witness`, openLine: lineNumber };
+              activeScopes.push(scope);
+              sourcePath = activeScopes.map(item => item.id);
+              meta = { scopeType: "ei_open", witness };
+              message = `✓ ${witness} is a fresh temporary name for the witness.`;
+            } else if (reason === "ei_close") {
+              if (!top || top.type !== "ei") throw new Error("There is no open existential-witness world to close.");
+              if (containsTerm(ast, top.witness)) throw new Error(`The conclusion still contains the temporary name ${top.witness}. Generalize or derive a name-free conclusion first.`);
+              const innerRefs = refs.length ? refs : [latestFormula(sources, pathBefore, top.id)].filter(Boolean);
+              if (innerRefs.length !== 1 || !sameFormula(ast, innerRefs[0].ast)) throw new Error("The cited name-free statement must match this conclusion.");
+              activeScopes.pop();
+              sourcePath = activeScopes.map(item => item.id);
+              message = "✓ The conclusion no longer depends on the temporary witness name. The witness world may close.";
+            } else if (reason === "eg") {
+              if (refs.length !== 1 || ast.type !== "exists") throw new Error("EG needs one reference and an existential conclusion.");
+              const term = instantiationTerm(ast.body, refs[0].ast, ast.variable);
+              if (!term) throw new Error("The cited statement is not an instance of this existential conclusion.");
+              message = "✓ Existential generalization is valid.";
+            } else if (reason === "and_i") {
+              if (refs.length !== 2 || ast.type !== "and") throw new Error("And introduction needs two references and a conclusion of the form P ∧ Q.");
+              const direct = sameFormula(ast.left, refs[0].ast) && sameFormula(ast.right, refs[1].ast);
+              const reverse = sameFormula(ast.left, refs[1].ast) && sameFormula(ast.right, refs[0].ast);
+              if (!direct && !reverse) throw new Error("The two parts of the conjunction must match the two cited statements.");
+              message = "✓ And introduction is valid.";
+            } else if (reason === "and_e") {
+              if (refs.length !== 1 || refs[0].ast?.type !== "and") throw new Error("And elimination needs one reference to a conjunction.");
+              if (!sameFormula(ast, refs[0].ast.left) && !sameFormula(ast, refs[0].ast.right)) throw new Error("This statement is not one of the two parts of the cited conjunction.");
+              message = "✓ And elimination is valid.";
+            } else if (reason === "or_i") {
+              if (refs.length !== 1 || ast.type !== "or") throw new Error("Or introduction needs one reference and a conclusion of the form P ∨ Q.");
+              if (!sameFormula(ast.left, refs[0].ast) && !sameFormula(ast.right, refs[0].ast)) throw new Error("One side of the disjunction must match the cited statement.");
+              message = "✓ Or introduction is valid.";
+            } else if (reason === "case_left" || reason === "case_right") {
+              if (refs.length !== 1 || refs[0].ast?.type !== "or") throw new Error("Beginning a case needs one reference to a disjunction.");
+              const side = reason === "case_left" ? "left" : "right";
+              const assumption = refs[0].ast[side];
+              if (!sameFormula(ast, assumption)) throw new Error(`The ${side} case must assume ${formatFormula(assumption)}.`);
+              const scope = { id: `scope-${++scopeCounter}`, type: "case", side, assumption, disjunctionRef: refs[0].ref, label: `${side === "left" ? "Left" : "Right"} case: make believe ${formatFormula(assumption)}`, openLine: lineNumber };
+              activeScopes.push(scope);
+              sourcePath = activeScopes.map(item => item.id);
+              meta = { scopeType: "case_open", side, disjunctionRef: refs[0].ref };
+              message = `✓ The ${side} case is now open.`;
+            } else if (reason === "case_close") {
+              if (!top || top.type !== "case") throw new Error("There is no open case to finish.");
+              const innerRefs = refs.length ? refs : [latestFormula(sources, pathBefore, top.id)].filter(Boolean);
+              if (innerRefs.length !== 1 || !sameFormula(ast, innerRefs[0].ast)) throw new Error("The result of this case must match a statement established inside it.");
+              activeScopes.pop();
+              sourcePath = activeScopes.map(item => item.id);
+              usable = false;
+              meta = { caseSummary: true, side: top.side, assumption: top.assumption, result: ast, disjunctionRef: top.disjunctionRef };
+              message = `✓ The ${top.side} case established ${formatFormula(ast)}.`;
+            } else if (reason === "cases") {
+              if (refs.length !== 3) throw new Error("Proof by cases needs three references: the disjunction, the finished left case, and the finished right case.");
+              const disjunction = refs.find(source => source.ast?.type === "or" && !source.meta?.caseSummary);
+              const summaries = refs.filter(source => source.meta?.caseSummary);
+              if (!disjunction || summaries.length !== 2) throw new Error("Cite one disjunction and two finished case lines.");
+              const left = summaries.find(source => source.meta.side === "left");
+              const right = summaries.find(source => source.meta.side === "right");
+              if (!left || !right || left.meta.disjunctionRef !== disjunction.ref || right.meta.disjunctionRef !== disjunction.ref) throw new Error("The case lines must be the left and right cases from the cited disjunction.");
+              if (!sameFormula(left.meta.result, right.meta.result) || !sameFormula(ast, left.meta.result)) throw new Error("Both cases must establish the same result, and that result must be this line.");
+              message = "✓ Both cases establish the same conclusion. Proof by cases is valid.";
+            } else if (reason === "demorgan") {
+              if (refs.length !== 1 || !deMorganPartners(refs[0].ast).some(candidate => sameFormula(candidate, ast))) throw new Error("This line is not the De Morgan equivalent of the cited statement.");
+              message = "✓ De Morgan’s law is applied correctly.";
+            } else if (reason === "dn") {
+              if (refs.length !== 1) throw new Error("Double negation needs one reference.");
+              const removes = refs[0].ast?.type === "not" && refs[0].ast.value.type === "not" && sameFormula(refs[0].ast.value.value, ast);
+              const adds = ast.type === "not" && ast.value.type === "not" && sameFormula(ast.value.value, refs[0].ast);
+              if (!removes && !adds) throw new Error("Add or remove exactly two negations.");
+              message = "✓ Double negation is applied correctly.";
+            } else if (reason === "iff_i") {
+              if (refs.length !== 2 || ast.type !== "iff" || refs.some(source => source.ast?.type !== "imp")) throw new Error("If-and-only-if introduction needs P → Q and Q → P.");
+              const first = refs[0].ast;
+              const second = refs[1].ast;
+              if (!sameFormula(first.left, second.right) || !sameFormula(first.right, second.left)) throw new Error("The cited implications must go in opposite directions.");
+              const matches = (sameFormula(ast.left, first.left) && sameFormula(ast.right, first.right)) || (sameFormula(ast.left, first.right) && sameFormula(ast.right, first.left));
+              if (!matches) throw new Error("The biconditional must connect the same two statements as the cited implications.");
+              message = "✓ If-and-only-if introduction is valid.";
+            } else if (reason === "iff_e") {
+              if (refs.length !== 1 || refs[0].ast?.type !== "iff" || ast.type !== "imp") throw new Error("If-and-only-if elimination turns P ↔ Q into P → Q or Q → P.");
+              const iff = refs[0].ast;
+              const forward = sameFormula(ast.left, iff.left) && sameFormula(ast.right, iff.right);
+              const reverse = sameFormula(ast.left, iff.right) && sameFormula(ast.right, iff.left);
+              if (!forward && !reverse) throw new Error("The implication must use the two sides of the cited biconditional.");
+              message = "✓ If-and-only-if elimination is valid.";
+            } else {
+              throw new Error("This proof move is not yet implemented.");
+            }
+
+            const ref = String(lineNumber);
+            sources.set(ref, { ref, line: lineNumber, ast, scopePath: sourcePath, valid: true, usable, meta });
+            if (sourcePath.length === 0 && usable) lastOuterFormula = ast;
+            const closesWorld = ["mb_close", "ug_close", "ei_close", "case_close"].includes(reason);
+            setLineStatus(row, "valid", message, closesWorld ? sourcePath.length : depthBefore, scopeLabels(activeScopes.slice(0, depthBefore)));
+          } catch (error) {
+            fail(error.message, /reference|cite|earlier|A\d|Line \d/i.test(error.message) ? refsInput : statementInput);
+          }
+        });
+
+        let resultKind = "pending";
+        let heading = "Proof not finished";
+        let copy = "Add proof lines, then check the proof.";
+        if (problemBlank) {
+          heading = "Ready for a proof";
+          copy = "Enter at least one axiom and a goal, or load the example to see how the checker works.";
+        } else if (problemError) {
+          resultKind = "error";
+          heading = "Fix the problem statement";
+          copy = "At least one axiom or the goal is missing or has invalid formula syntax.";
+        } else if (errorCount > 0) {
+          resultKind = "error";
+          heading = `${errorCount} ${errorCount === 1 ? "line needs" : "lines need"} attention`;
+          copy = "Start with the first marked line. Later errors may disappear after it is corrected.";
+        } else if (activeScopes.length > 0) {
+          const top = activeScopes[activeScopes.length - 1];
+          heading = "A pretend world is still open";
+          copy = `Finish the goal inside “${top.label},” then use the matching conclude-and-pop-out move.`;
+        } else if (goal && sameFormula(lastOuterFormula, goal)) {
+          resultKind = "success";
+          heading = "Proof checks out";
+          copy = `The proof establishes ${formatFormula(goal)}, and every pretend world is closed.`;
+        } else if (rows().length > 0) {
+          heading = "The lines are valid so far";
+          copy = `The proof does not yet finish with the goal ${formatFormula(goal)} in the original world.`;
+        }
+
+        els.resultRegion.replaceChildren();
+        const card = document.createElement("div");
+        card.className = `result-card ${resultKind}`;
+        const h = document.createElement("h3");
+        h.textContent = heading;
+        const p = document.createElement("p");
+        p.textContent = copy;
+        card.append(h, p);
+        els.resultRegion.append(card);
+
+        if (focusFirstError && firstErrorInput) firstErrorInput.focus();
+        if (announceResult) announce(`${heading}. ${copy}`);
+        return { valid: resultKind === "success", errorCount, heading, copy };
+      }
+
+      function scheduleCheck() {
+        window.clearTimeout(checkTimer);
+        checkTimer = window.setTimeout(() => checkProof(), 350);
+      }
+
+      function updateGoalPreview() {
+        try {
+          const ast = parseFormula(els.goalInput.value);
+          els.goalPreview.textContent = formatFormula(ast);
+        } catch (error) {
+          els.goalPreview.textContent = error.message;
+        }
+      }
+
+      function insertSymbol(button) {
+        const input = activeFormulaInput?.isConnected ? activeFormulaInput : els.goalInput;
+        const insertion = button.dataset.insert || "";
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? start;
+        input.setRangeText(insertion, start, end, "end");
+        const back = Number(button.dataset.back || 0);
+        const caret = Math.max(0, (input.selectionStart ?? input.value.length) - back);
+        input.focus();
+        input.setSelectionRange(caret, caret);
+        if (input === els.goalInput) updateGoalPreview();
+        scheduleCheck();
+      }
+
+      function clearAll() {
+        els.axiomList.replaceChildren();
+        addAxiom("");
+        els.goalInput.value = "";
+        els.proofLines.replaceChildren();
+        renderEmptyProof();
+        updateGoalPreview();
+        checkProof();
+      }
+
+      function loadExample() {
+        els.axiomList.replaceChildren();
+        addAxiom("(∀ c)(S(c) → M(c))");
+        addAxiom("(∀ c)(M(c) → V(c))");
+        els.goalInput.value = "(∀ c)(S(c) → V(c))";
+        els.proofLines.replaceChildren();
+        [
+          { statement: "Bob", reason: "ug_open", refs: "" },
+          { statement: "S(Bob)", reason: "mb_open", refs: "" },
+          { statement: "S(Bob) → M(Bob)", reason: "ui", refs: "A1" },
+          { statement: "M(Bob)", reason: "detach", refs: "2, 3" },
+          { statement: "M(Bob) → V(Bob)", reason: "ui", refs: "A2" },
+          { statement: "V(Bob)", reason: "detach", refs: "4, 5" },
+          { statement: "S(Bob) → V(Bob)", reason: "mb_close", refs: "6" },
+          { statement: "(∀ c)(S(c) → V(c))", reason: "ug_close", refs: "7" }
+        ].forEach(addProofLine);
+        updateGoalPreview();
+        const result = checkProof();
+        announce(result.valid ? "Example loaded. The proof checks out." : "Example loaded.");
+      }
+
+      els.addAxiom.addEventListener("click", () => addAxiom("").focus());
+      els.addLine.addEventListener("click", () => addProofLine().focus());
+      els.clearProof.addEventListener("click", () => {
+        els.proofLines.replaceChildren();
+        renderEmptyProof();
+        checkProof({ announceResult: true });
+      });
+      els.checkProof.addEventListener("click", () => checkProof({ focusFirstError: true, announceResult: true }));
+      els.loadExample.addEventListener("click", loadExample);
+      els.goalInput.addEventListener("focus", () => { activeFormulaInput = els.goalInput; });
+      wireFormulaInput(els.goalInput);
+      document.querySelectorAll("[data-insert]").forEach(button => button.addEventListener("click", () => insertSymbol(button)));
+
+      addAxiom("");
+      renderEmptyProof();
+      updateGoalPreview();
+      checkProof();
+    })();
+  </script>
+</body>
+</html>

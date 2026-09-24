@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interactive tools for practicing and checking CS 227 proofs.">
+  <meta name="theme-color" content="#16233f">
+  <title>CS 227 Proof Tools</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='13' fill='%2316233f'/%3E%3Cpath d='M18 17v30M18 17h10M18 47h10M35 24l6 6-6 6M41 30h9' fill='none' stroke='%237dd3fc' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --navy-950: #0d172b;
+      --navy-900: #16233f;
+      --navy-800: #213456;
+      --blue-700: #1769aa;
+      --blue-100: #dff3ff;
+      --canvas: #eef3f9;
+      --muted: #5b6578;
+      --line: #c9d2df;
+      --shadow: 0 16px 34px rgb(29 45 73 / .13);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background:
+        linear-gradient(135deg, rgb(22 35 63 / .96), rgb(24 105 170 / .88)) 0 0 / 100% 235px no-repeat,
+        var(--canvas);
+      color: #172033;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    a { color: inherit; }
+
+    .shell {
+      width: min(980px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 3.5rem 0 4rem;
+    }
+
+    .masthead { color: white; }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: .85rem;
+    }
+
+    .mark {
+      display: grid;
+      place-items: center;
+      width: 52px;
+      height: 52px;
+      border: 2px solid #7dd3fc;
+      border-radius: 12px;
+      color: #7dd3fc;
+      font-family: Georgia, serif;
+      font-size: 1.8rem;
+      font-weight: 800;
+    }
+
+    h1 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.35rem); line-height: 1.1; }
+    .masthead p { max-width: 650px; margin: .8rem 0 0; color: #d9edff; }
+
+    .tools {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1.15rem;
+      margin-top: 2.4rem;
+    }
+
+    .tool-card {
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      min-height: 310px;
+      padding: 1.35rem;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: white;
+      box-shadow: var(--shadow);
+      text-decoration: none;
+      transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
+    }
+
+    .tool-card:hover,
+    .tool-card:focus-visible {
+      transform: translateY(-3px);
+      border-color: #5c9dce;
+      box-shadow: 0 20px 38px rgb(29 45 73 / .18);
+      outline: 3px solid transparent;
+    }
+
+    .tool-icon {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 11px;
+      background: var(--navy-900);
+      color: #8bdcff;
+      font-family: Georgia, serif;
+      font-size: 1.35rem;
+      font-weight: 800;
+    }
+
+    .tool-card:nth-child(2) .tool-icon { background: #145f69; color: #c9fbff; }
+    .tool-card:nth-child(3) .tool-icon { background: #542178; color: #f0d6ff; }
+    .tool-card h2 { margin: .85rem 0 .25rem; color: var(--navy-900); font-size: 1.3rem; }
+    .tool-card p { margin: 0; color: var(--muted); }
+
+    .action {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      margin-top: 1rem;
+      color: var(--blue-700);
+      font-weight: 850;
+    }
+
+    .note {
+      margin: 1.25rem 0 0;
+      color: #435069;
+      font-size: .9rem;
+      text-align: center;
+    }
+
+    @media (max-width: 860px) {
+      .tools { grid-template-columns: 1fr; }
+      .tool-card { min-height: 230px; }
+    }
+
+    @media (max-width: 680px) {
+      body { background-size: 100% 285px; }
+      .shell { padding-top: 2rem; }
+      .tools { grid-template-columns: 1fr; margin-top: 1.7rem; }
+      .tool-card { min-height: 250px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .tool-card { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">⊢</div>
+        <h1>CS 227 Proof Tools</h1>
+      </div>
+      <p>Learn moves in the guided lab, assemble proofs in the checker, or write complete proofs in the compiler-style Pro workspace.</p>
+    </header>
+
+    <section class="tools" aria-label="Choose a proof tool">
+      <a class="tool-card" href="proof-lab.html">
+        <div class="tool-icon" aria-hidden="true">⊢</div>
+        <h2>Proof Lab</h2>
+        <p>Build guided proofs one justified move at a time. The lab tracks the current goal and the pretend worlds that are open.</p>
+        <span class="action">Open the guided lab <span aria-hidden="true">→</span></span>
+      </a>
+
+      <a class="tool-card" href="proof-checker.html">
+        <div class="tool-icon" aria-hidden="true">✓</div>
+        <h2>Proof Checker</h2>
+        <p>Enter axioms, a goal, and your own proof. Check each line’s formula, justification, references, and scope.</p>
+        <span class="action">Open the checker <span aria-hidden="true">→</span></span>
+      </a>
+
+      <a class="tool-card" href="proof-checker-pro.html">
+        <div class="tool-icon" aria-hidden="true">&gt;_</div>
+        <h2>Proof Checker Pro</h2>
+        <p>Write a complete proof as a small program. The compiler checks each command and shows the current goal and open pretend worlds.</p>
+        <span class="action">Open the Pro checker <span aria-hidden="true">→</span></span>
+      </a>
+    </section>
+
+    <p class="note">All three tools run entirely in your browser.</p>
+  </main>
+</body>
+</html>

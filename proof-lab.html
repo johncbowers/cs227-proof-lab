@@ -1,0 +1,3287 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An interactive proof workspace for practicing scoped logical reasoning.">
+  <meta name="theme-color" content="#16233f">
+  <title>Proof Lab</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='13' fill='%2316233f'/%3E%3Cpath d='M18 17v30M18 17h10M18 47h10M35 24l6 6-6 6M41 30h9' fill='none' stroke='%237dd3fc' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --navy-950: #0d172b;
+      --navy-900: #16233f;
+      --navy-800: #213456;
+      --blue-700: #1769aa;
+      --blue-600: #1879bd;
+      --blue-100: #dff3ff;
+      --blue-50: #f1f9ff;
+      --amber-600: #b8620b;
+      --amber-100: #ffedc6;
+      --green-700: #23724b;
+      --green-100: #dff5e9;
+      --red-700: #a13434;
+      --red-100: #fde6e6;
+      --ink: #172033;
+      --muted: #5b6578;
+      --line: #c9d2df;
+      --line-dark: #96a4b8;
+      --paper: #ffffff;
+      --canvas: #eef3f9;
+      --shadow: 0 12px 28px rgb(29 45 73 / 0.10);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { font-size: 100%; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    button, select, input { font: inherit; }
+
+    button, select { min-height: 44px; }
+
+    button { cursor: pointer; }
+
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible,
+    summary:focus-visible {
+      outline: 3px solid #e99824;
+      outline-offset: 2px;
+    }
+
+    .skip-link {
+      position: fixed;
+      left: 1rem;
+      top: -5rem;
+      z-index: 100;
+      padding: .65rem 1rem;
+      border-radius: 8px;
+      background: white;
+      color: var(--navy-950);
+      font-weight: 800;
+    }
+
+    .skip-link:focus { top: 1rem; }
+
+    .app-header {
+      display: grid;
+      grid-template-columns: minmax(180px, .8fr) minmax(300px, 2fr) minmax(200px, .8fr);
+      align-items: center;
+      gap: 1rem;
+      min-height: 76px;
+      padding: .8rem 1.2rem;
+      background: var(--navy-900);
+      color: white;
+      border-bottom: 4px solid #54b8e9;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 auto;
+      border: 2px solid #7dd3fc;
+      border-radius: 10px;
+      color: #7dd3fc;
+      font-family: Georgia, serif;
+      font-size: 1.5rem;
+      font-weight: 800;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 1.25rem;
+      line-height: 1.1;
+      letter-spacing: .01em;
+    }
+
+    .brand p {
+      margin: .15rem 0 0;
+      color: #c9e9f8;
+      font-size: .82rem;
+    }
+
+    .suite-link {
+      display: inline-block;
+      margin-top: .28rem;
+      color: #9fddff;
+      font-size: .78rem;
+      font-weight: 750;
+      text-underline-offset: .18rem;
+    }
+
+    .suite-link:hover { color: white; }
+
+    .lesson-picker { min-width: 0; }
+
+    .lesson-picker label {
+      display: block;
+      margin-bottom: .2rem;
+      color: #c9e9f8;
+      font-size: .78rem;
+      font-weight: 700;
+    }
+
+    .lesson-picker select {
+      width: 100%;
+      min-height: 42px;
+      padding: .45rem 2.1rem .45rem .7rem;
+      border: 1px solid #8292ab;
+      border-radius: 8px;
+      background: white;
+      color: var(--ink);
+      font-weight: 650;
+    }
+
+    .lesson-picker-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: .45rem;
+      align-items: center;
+    }
+
+    .create-problem-button {
+      min-height: 42px;
+      padding: .42rem .7rem;
+      border: 1px solid #82bfe0;
+      border-radius: 8px;
+      background: #e8f7ff;
+      color: #123c60;
+      font-size: .8rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .create-problem-button:hover { background: white; }
+
+    .header-progress {
+      justify-self: end;
+      width: min(100%, 245px);
+    }
+
+    .progress-copy {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: .3rem;
+      color: #e7f6fe;
+      font-size: .78rem;
+      font-weight: 700;
+    }
+
+    .progress-track {
+      height: 9px;
+      overflow: hidden;
+      border: 1px solid #60718c;
+      border-radius: 999px;
+      background: #0b1428;
+    }
+
+    .progress-fill {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: #7dd3fc;
+      transition: width 180ms ease;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(245px, 1fr) minmax(430px, 2.15fr) minmax(270px, 1.15fr);
+      grid-template-areas: "problem proof toolbox";
+      gap: 1rem;
+      max-width: 1680px;
+      margin: 0 auto;
+      padding: 1rem;
+      align-items: start;
+    }
+
+    .panel {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-header {
+      padding: .9rem 1rem .75rem;
+      border-bottom: 1px solid var(--line);
+      background: #f8fbff;
+    }
+
+    .panel-header h2,
+    .panel-header h3 {
+      margin: 0;
+      color: var(--navy-900);
+      font-size: 1rem;
+      line-height: 1.3;
+    }
+
+    .panel-header p {
+      margin: .25rem 0 0;
+      color: var(--muted);
+      font-size: .86rem;
+    }
+
+    .problem-panel {
+      grid-area: problem;
+      position: sticky;
+      top: 1rem;
+    }
+
+    .problem-body { padding: 1rem; }
+
+    .lesson-kicker {
+      margin: 0 0 .25rem;
+      color: var(--blue-700);
+      font-size: .75rem;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .problem-title {
+      margin: 0;
+      color: var(--navy-950);
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 1.35rem;
+      line-height: 1.25;
+    }
+
+    .problem-intro {
+      margin: .55rem 0 1rem;
+      color: var(--muted);
+      font-size: .92rem;
+    }
+
+    .predicate-key {
+      margin: -.35rem 0 .9rem;
+      padding: .55rem .65rem;
+      border-radius: 7px;
+      background: #f1f4f8;
+      color: #4c5b70;
+      font-size: .8rem;
+    }
+
+    .predicate-key strong { color: var(--navy-800); }
+
+    .section-label {
+      margin: 1rem 0 .4rem;
+      color: var(--navy-800);
+      font-size: .76rem;
+      font-weight: 850;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+
+    .axiom-list {
+      display: grid;
+      gap: .5rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .axiom {
+      padding: .65rem .7rem;
+      border: 1px solid #c8d6e7;
+      border-left: 4px solid var(--blue-600);
+      border-radius: 8px;
+      background: var(--blue-50);
+    }
+
+    .axiom-name {
+      display: block;
+      margin-bottom: .15rem;
+      color: var(--blue-700);
+      font-size: .72rem;
+      font-weight: 850;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .formula {
+      color: #11192b;
+      font-family: "STIX Two Math", "Cambria Math", Cambria, Georgia, serif;
+      font-size: 1.05rem;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+
+    .target-card {
+      padding: .75rem;
+      border: 2px solid var(--navy-800);
+      border-radius: 9px;
+      background: #f8faff;
+    }
+
+    .world-stack {
+      display: grid;
+      gap: .45rem;
+    }
+
+    .world-chip {
+      display: flex;
+      align-items: flex-start;
+      gap: .45rem;
+      padding: .5rem .6rem;
+      border-radius: 7px;
+      background: #edf5ff;
+      color: #263f69;
+      font-size: .83rem;
+      font-weight: 650;
+    }
+
+    .world-chip::before {
+      content: "│";
+      color: var(--blue-600);
+      font-weight: 900;
+    }
+
+    .empty-worlds {
+      margin: 0;
+      color: var(--muted);
+      font-size: .84rem;
+    }
+
+    .notebook-panel { grid-area: proof; min-height: calc(100vh - 108px); }
+
+    .notebook-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: .65rem;
+      padding: .7rem 1rem;
+      border-bottom: 1px solid var(--line);
+      background: white;
+    }
+
+    .toolbar-copy {
+      color: var(--muted);
+      font-size: .86rem;
+    }
+
+    .toolbar-actions { display: flex; flex-wrap: wrap; gap: .45rem; }
+
+    .small-button {
+      min-height: 38px;
+      padding: .4rem .7rem;
+      border: 1px solid #9aabc1;
+      border-radius: 7px;
+      background: white;
+      color: var(--navy-800);
+      font-size: .84rem;
+      font-weight: 750;
+    }
+
+    .small-button:hover { background: #edf5ff; }
+    .small-button:disabled { cursor: not-allowed; opacity: .45; }
+
+    .notes-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      min-height: 38px;
+      padding: .25rem .55rem;
+      border-radius: 7px;
+      color: var(--navy-800);
+      font-size: .84rem;
+      font-weight: 700;
+    }
+
+    .notes-toggle input { width: 18px; height: 18px; }
+
+    .goal-banner {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: .7rem;
+      align-items: center;
+      margin: 1rem;
+      padding: .8rem .9rem;
+      border: 1px solid #d79b3f;
+      border-radius: 10px;
+      background: #fff8e9;
+    }
+
+    .goal-icon {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--amber-100);
+      color: #864600;
+      font-weight: 900;
+    }
+
+    .goal-banner strong {
+      display: block;
+      color: #724005;
+      font-size: .74rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .goal-context {
+      margin-top: .1rem;
+      color: #6d573b;
+      font-size: .78rem;
+    }
+
+    .pop-out-button {
+      min-height: 42px;
+      max-width: 13rem;
+      padding: .55rem .8rem;
+      border: 1px solid #2f7956;
+      border-radius: 8px;
+      background: #e7f7ee;
+      color: #18583a;
+      font-size: .82rem;
+      font-weight: 850;
+      line-height: 1.25;
+    }
+
+    .pop-out-button:hover { background: #d7f0e2; }
+
+    .proof-sheet {
+      position: relative;
+      min-height: 390px;
+      margin: 0 1rem 1rem;
+      overflow: hidden;
+      border: 1px solid #c7d2df;
+      border-radius: 10px;
+      background:
+        linear-gradient(90deg, transparent 55px, #f2b4b4 56px, transparent 57px),
+        repeating-linear-gradient(180deg, white 0, white 43px, #dbe8f4 44px, white 45px);
+    }
+
+    .proof-empty {
+      max-width: 430px;
+      margin: 4.5rem auto;
+      padding: 1rem 1.2rem;
+      border-radius: 10px;
+      background: rgb(255 255 255 / .92);
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .proof-empty strong {
+      display: block;
+      margin-bottom: .2rem;
+      color: var(--navy-800);
+    }
+
+    .proof-line {
+      display: grid;
+      grid-template-columns: 42px minmax(0, 1.35fr) minmax(130px, .85fr);
+      min-height: 60px;
+      border-bottom: 1px solid #dae5ef;
+      background: rgb(255 255 255 / .9);
+    }
+
+    .proof-line:last-child { border-bottom: 0; }
+
+    .line-number {
+      padding: .85rem .5rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+    }
+
+    .line-statement {
+      position: relative;
+      display: flex;
+      min-width: 0;
+      align-items: flex-start;
+      gap: .45rem;
+      padding: .75rem .6rem;
+    }
+
+    .scope-rails {
+      display: inline-flex;
+      align-self: stretch;
+      gap: 5px;
+      min-height: 30px;
+      flex: 0 0 auto;
+    }
+
+    .scope-rail {
+      display: block;
+      width: 4px;
+      min-height: 100%;
+      border-radius: 5px;
+      background: #55aeda;
+    }
+
+    .scope-rail:nth-child(2n) { background: #e39a32; }
+    .scope-rail:nth-child(3n) { background: #6f78bf; }
+
+    .line-formula { min-width: 0; }
+
+    .line-kind {
+      display: inline-block;
+      margin-top: .25rem;
+      padding: .1rem .35rem;
+      border-radius: 4px;
+      background: #eaf0f8;
+      color: #3f526d;
+      font-family: Inter, ui-sans-serif, sans-serif;
+      font-size: .68rem;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .line-reason {
+      padding: .75rem .75rem .75rem .6rem;
+      border-left: 1px solid #d3deea;
+      color: #4e5b70;
+      font-size: .82rem;
+    }
+
+    .line-explanation {
+      display: none;
+      margin-top: .28rem;
+      color: #5e6878;
+      font-size: .76rem;
+      line-height: 1.35;
+    }
+
+    .show-notes .line-explanation { display: block; }
+
+    .completion-card {
+      margin: 1rem;
+      padding: 1rem;
+      border: 2px solid #58a37b;
+      border-radius: 10px;
+      background: var(--green-100);
+    }
+
+    .completion-card h3 { margin: 0 0 .25rem; color: #175d3c; }
+    .completion-card p { margin: 0 0 .7rem; color: #245f46; }
+
+    .primary-button {
+      min-height: 42px;
+      padding: .55rem .85rem;
+      border: 1px solid #0e5388;
+      border-radius: 7px;
+      background: var(--blue-700);
+      color: white;
+      font-weight: 800;
+    }
+
+    .primary-button:hover { background: #0f5489; }
+
+    .toolbox-panel {
+      grid-area: toolbox;
+      position: sticky;
+      top: 1rem;
+      display: flex;
+      flex-direction: column;
+      max-height: calc(100vh - 108px);
+      overflow: hidden;
+    }
+
+    .toolbox-settings {
+      padding: .7rem 1rem;
+      border-bottom: 1px solid var(--line);
+      background: #edf5ff;
+    }
+
+    .toolbox-settings label {
+      display: block;
+      margin-bottom: .25rem;
+      color: var(--navy-800);
+      font-size: .78rem;
+      font-weight: 850;
+    }
+
+    .toolbox-settings select {
+      width: 100%;
+      min-height: 40px;
+      padding: .35rem .55rem;
+      border: 1px solid #8da2bb;
+      border-radius: 7px;
+      background: white;
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .level-description {
+      margin: .3rem 0 0;
+      color: #52647d;
+      font-size: .76rem;
+    }
+
+    .toolbox-body {
+      display: flex;
+      min-height: 0;
+      flex: 1 1 auto;
+      flex-direction: column;
+    }
+
+    .rule-scroll {
+      min-height: 0;
+      padding: .85rem;
+      overflow: auto;
+      overscroll-behavior: contain;
+    }
+
+    .rule-group + .rule-group { margin-top: .85rem; }
+
+    .rule-group h3 {
+      margin: 0 0 .35rem;
+      color: var(--muted);
+      font-size: .72rem;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+
+    .rule-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .4rem;
+    }
+
+    .rule-button {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: .45rem;
+      min-height: 56px;
+      padding: .45rem .5rem;
+      border: 1px solid #b6c3d3;
+      border-radius: 8px;
+      background: white;
+      color: var(--navy-800);
+      text-align: left;
+    }
+
+    .rule-button:hover { background: #f0f7ff; border-color: #75a9d0; }
+
+    .rule-button[aria-pressed="true"] {
+      border: 2px solid var(--blue-700);
+      background: var(--blue-100);
+      box-shadow: 0 0 0 2px white inset;
+    }
+
+    .rule-abbr {
+      display: grid;
+      place-items: center;
+      min-width: 31px;
+      height: 31px;
+      padding: 0 .2rem;
+      border-radius: 6px;
+      background: var(--navy-900);
+      color: white;
+      font-family: Georgia, serif;
+      font-size: .78rem;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .rule-name {
+      font-size: .76rem;
+      font-weight: 750;
+      line-height: 1.2;
+    }
+
+    .application-panel {
+      flex: 0 0 auto;
+      min-height: 118px;
+      max-height: 38vh;
+      padding: .75rem .85rem;
+      overflow: auto;
+      border-bottom: 2px solid #cddceb;
+      background: white;
+      box-shadow: 0 5px 12px rgb(29 45 73 / .08);
+    }
+
+    .application-panel h3 {
+      margin: 0;
+      color: var(--navy-900);
+      font-size: .93rem;
+    }
+
+    .application-intro {
+      margin: .25rem 0 .55rem;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+
+    .application-goal {
+      margin: 0 0 .55rem;
+      padding: .45rem .55rem;
+      border-left: 4px solid #d79b3f;
+      border-radius: 5px;
+      background: #fff8e9;
+      color: #60451f;
+      font-size: .78rem;
+    }
+
+    .application-goal .formula { display: block; margin-top: .1rem; font-size: .9rem; }
+
+    .application-list {
+      display: grid;
+      gap: .5rem;
+    }
+
+    .application-button {
+      width: 100%;
+      min-height: 64px;
+      padding: .6rem .7rem;
+      border: 1px solid #8ba3bd;
+      border-radius: 8px;
+      background: #f8fbff;
+      color: var(--ink);
+      text-align: left;
+    }
+
+    .application-button:hover { border-color: var(--blue-700); background: #eaf6ff; }
+
+    .application-button strong {
+      display: block;
+      margin-bottom: .15rem;
+      color: var(--blue-700);
+      font-size: .82rem;
+    }
+
+    .application-button .formula { font-size: .92rem; }
+
+    .no-application {
+      padding: .7rem;
+      border: 1px solid #e0b66f;
+      border-radius: 8px;
+      background: #fff8e9;
+      color: #6a4c20;
+      font-size: .82rem;
+    }
+
+    .rule-reference {
+      margin-top: .8rem;
+      border-top: 1px solid var(--line);
+      padding-top: .65rem;
+    }
+
+    .rule-reference summary {
+      cursor: pointer;
+      color: var(--navy-800);
+      font-size: .84rem;
+      font-weight: 800;
+    }
+
+    .rule-reference p {
+      margin: .45rem 0 0;
+      color: var(--muted);
+      font-size: .8rem;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .composer-dialog {
+      width: min(760px, calc(100vw - 2rem));
+      max-height: calc(100vh - 2rem);
+      padding: 0;
+      overflow: hidden;
+      border: 0;
+      border-radius: 14px;
+      background: white;
+      color: var(--ink);
+      box-shadow: 0 30px 80px rgb(4 16 35 / .35);
+    }
+
+    .composer-dialog::backdrop { background: rgb(8 19 38 / .68); }
+
+    .composer-form {
+      display: flex;
+      max-height: calc(100vh - 2rem);
+      flex-direction: column;
+    }
+
+    .composer-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.15rem .85rem;
+      border-bottom: 1px solid var(--line);
+      background: var(--navy-900);
+      color: white;
+    }
+
+    .composer-header h2 { margin: 0; font-size: 1.2rem; }
+    .composer-header p { margin: .2rem 0 0; color: #cce7f7; font-size: .85rem; }
+
+    .dialog-close {
+      min-width: 42px;
+      min-height: 42px;
+      border: 1px solid #8dc8e7;
+      border-radius: 8px;
+      background: transparent;
+      color: white;
+      font-size: 1.3rem;
+    }
+
+    .composer-body {
+      padding: 1rem 1.15rem;
+      overflow: auto;
+    }
+
+    .composer-field { margin: 0 0 1rem; }
+
+    .composer-field > label,
+    .composer-legend {
+      display: block;
+      margin-bottom: .35rem;
+      color: var(--navy-800);
+      font-size: .84rem;
+      font-weight: 850;
+    }
+
+    .composer-help {
+      margin: -.15rem 0 .45rem;
+      color: var(--muted);
+      font-size: .78rem;
+    }
+
+    .composer-input,
+    .formula-input {
+      width: 100%;
+      min-height: 44px;
+      padding: .55rem .65rem;
+      border: 1px solid #9cabc0;
+      border-radius: 7px;
+      background: white;
+      color: var(--ink);
+    }
+
+    .formula-input {
+      font-family: "STIX Two Math", "Cambria Math", Cambria, Georgia, serif;
+      font-size: 1rem;
+    }
+
+    .formula-input[aria-invalid="true"] { border: 2px solid var(--red-700); }
+
+    .symbol-palette {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .35rem;
+      margin-bottom: .85rem;
+      padding: .6rem;
+      border: 1px solid #c8d6e7;
+      border-radius: 9px;
+      background: #f5f9fe;
+    }
+
+    .symbol-palette button {
+      min-width: 42px;
+      min-height: 40px;
+      padding: .35rem .55rem;
+      border: 1px solid #91a8c0;
+      border-radius: 6px;
+      background: white;
+      color: var(--navy-900);
+      font-family: "STIX Two Math", "Cambria Math", Cambria, Georgia, serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+    }
+
+    .symbol-palette button:hover { background: var(--blue-100); }
+
+    .symbol-divider {
+      width: 1px;
+      align-self: stretch;
+      margin: 0 .15rem;
+      background: #bfccda;
+    }
+
+    .axiom-editor-list { display: grid; gap: .5rem; }
+
+    .axiom-editor-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: .45rem;
+    }
+
+    .axiom-editor-row label {
+      color: var(--muted);
+      font-size: .76rem;
+      font-weight: 800;
+    }
+
+    .remove-axiom {
+      min-width: 42px;
+      min-height: 42px;
+      border: 1px solid #d6a1a1;
+      border-radius: 7px;
+      background: #fff7f7;
+      color: #812d2d;
+      font-weight: 800;
+    }
+
+    .add-axiom {
+      min-height: 38px;
+      margin-top: .5rem;
+      padding: .35rem .65rem;
+      border: 1px solid #8da7c1;
+      border-radius: 7px;
+      background: white;
+      color: var(--navy-800);
+      font-size: .8rem;
+      font-weight: 800;
+    }
+
+    .formula-preview {
+      padding: .7rem .8rem;
+      border: 1px solid #bfd0e2;
+      border-radius: 9px;
+      background: #f8fbff;
+    }
+
+    .formula-preview h3 { margin: 0 0 .35rem; font-size: .85rem; color: var(--navy-800); }
+
+    .preview-list { margin: 0; padding-left: 1.25rem; }
+    .preview-list li + li { margin-top: .25rem; }
+
+    .composer-status {
+      min-height: 1.4rem;
+      margin: .55rem 0 0;
+      color: var(--red-700);
+      font-size: .82rem;
+      font-weight: 700;
+    }
+
+    .composer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: .55rem;
+      padding: .8rem 1.15rem;
+      border-top: 1px solid var(--line);
+      background: #f7f9fc;
+    }
+
+    @media (max-width: 1120px) {
+      .workspace {
+        grid-template-columns: minmax(225px, .8fr) minmax(390px, 1.7fr);
+        grid-template-areas:
+          "problem toolbox"
+          "proof proof";
+      }
+      .toolbox-panel { position: static; max-height: none; overflow: visible; }
+      .rule-scroll { overflow: visible; }
+      .rule-grid { grid-template-columns: repeat(4, minmax(145px, 1fr)); }
+    }
+
+    @media (max-width: 760px) {
+      .app-header { grid-template-columns: 1fr; }
+      .header-progress { justify-self: stretch; width: 100%; }
+      .workspace {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "problem"
+          "toolbox"
+          "proof";
+        padding: .65rem;
+      }
+      .problem-panel, .toolbox-panel { position: static; }
+      .notebook-panel { min-height: 0; }
+      .rule-grid { grid-template-columns: 1fr 1fr; }
+      .proof-line { grid-template-columns: 34px minmax(0, 1fr); }
+      .line-number { padding-left: .2rem; padding-right: .3rem; }
+      .line-reason { grid-column: 2; padding-top: 0; border-left: 0; }
+      .lesson-picker-row { grid-template-columns: 1fr; }
+      .axiom-editor-row { grid-template-columns: 1fr auto; }
+      .axiom-editor-row label { grid-column: 1 / -1; }
+      .goal-banner { grid-template-columns: auto minmax(0, 1fr); }
+      .pop-out-button { grid-column: 1 / -1; width: 100%; max-width: none; }
+    }
+
+    @media (max-width: 430px) {
+      .rule-grid { grid-template-columns: 1fr; }
+      .notebook-toolbar { align-items: flex-start; }
+      .toolbar-actions { width: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#proof-workspace">Skip to proof workspace</a>
+
+  <header class="app-header">
+    <div class="brand" aria-label="Proof Lab">
+      <div class="brand-mark" aria-hidden="true">⊢</div>
+      <div>
+        <h1>Proof Lab</h1>
+        <p>Build a proof one justified move at a time.</p>
+        <a class="suite-link" href="./">← All proof tools</a>
+      </div>
+    </div>
+
+    <div class="lesson-picker">
+      <label for="lesson-select">Practice proof</label>
+      <div class="lesson-picker-row">
+        <select id="lesson-select"></select>
+        <button class="create-problem-button" id="custom-problem-button" type="button">Create your own</button>
+      </div>
+    </div>
+
+    <div class="header-progress" aria-label="Course progress">
+      <div class="progress-copy">
+        <span id="progress-text">0 of 7 complete</span>
+        <span id="move-count">0 moves</span>
+      </div>
+      <div class="progress-track" id="progress-track" role="progressbar" aria-label="Available proof completion" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="workspace" id="proof-workspace">
+    <aside class="panel problem-panel" aria-labelledby="problem-heading">
+      <div class="problem-body">
+        <p class="lesson-kicker" id="lesson-kicker"></p>
+        <h2 class="problem-title" id="problem-heading" tabindex="-1"></h2>
+        <p class="problem-intro" id="problem-intro"></p>
+        <p class="predicate-key" id="predicate-key"></p>
+
+        <h3 class="section-label">Axioms</h3>
+        <ol class="axiom-list" id="axiom-list"></ol>
+
+        <h3 class="section-label">Prove</h3>
+        <div class="target-card">
+          <span class="formula" id="target-formula" role="math"></span>
+        </div>
+
+        <h3 class="section-label">Open pretend worlds</h3>
+        <div class="world-stack" id="world-stack"></div>
+      </div>
+    </aside>
+
+    <section class="panel notebook-panel" aria-labelledby="notebook-heading">
+      <div class="panel-header">
+        <h2 id="notebook-heading">Your proof</h2>
+        <p>Use the goal to guide you; some moves first establish facts you will need.</p>
+      </div>
+
+      <div class="notebook-toolbar">
+        <span class="toolbar-copy">Choose a proof move, then choose how to apply it.</span>
+        <div class="toolbar-actions">
+          <label class="notes-toggle"><input id="notes-toggle" type="checkbox"> Explain lines</label>
+          <button class="small-button" id="hint-button" type="button">Hint</button>
+          <button class="small-button" id="undo-button" type="button">Undo</button>
+          <button class="small-button" id="reset-button" type="button">Reset</button>
+        </div>
+      </div>
+
+      <div class="goal-banner" id="goal-banner" aria-live="polite">
+        <span class="goal-icon" aria-hidden="true">◎</span>
+        <div>
+          <strong>Current goal</strong>
+          <div class="formula" id="current-goal" role="math"></div>
+          <div class="goal-context" id="goal-context"></div>
+        </div>
+        <button class="pop-out-button" id="pop-out-button" type="button" hidden>Goal met — pop out</button>
+      </div>
+
+      <div class="proof-sheet" id="proof-sheet" role="list" aria-label="Proof lines"></div>
+      <div id="completion-region"></div>
+    </section>
+
+    <aside class="panel toolbox-panel" aria-labelledby="toolbox-heading">
+      <div class="panel-header">
+        <h2 id="toolbox-heading">Proof moves</h2>
+        <p>Select the move that fits the current goal or available information.</p>
+      </div>
+      <div class="toolbox-settings">
+        <label for="rule-level-select">Moves you have learned</label>
+        <select id="rule-level-select">
+          <option value="1">Foundations: UI, UG, MB, detachment</option>
+          <option value="2">Add existential moves</option>
+          <option value="3">Add and introduction/elimination</option>
+          <option value="4">Add or introduction/proof by cases</option>
+          <option value="5">Add negation laws</option>
+        </select>
+        <p class="level-description" id="level-description"></p>
+      </div>
+      <div class="toolbox-body">
+        <div class="application-panel" id="application-panel"></div>
+        <div class="rule-scroll" aria-label="Available proof moves">
+          <div id="rule-groups"></div>
+          <details class="rule-reference" id="rule-reference">
+            <summary>What does this move do?</summary>
+            <p id="rule-help">Select a proof move to see a short reminder.</p>
+          </details>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <div class="sr-only" id="announcer" aria-live="assertive"></div>
+
+  <dialog class="composer-dialog" id="problem-composer" aria-labelledby="composer-title">
+    <form class="composer-form" id="composer-form" method="dialog">
+      <div class="composer-header">
+        <div>
+          <h2 id="composer-title">Create a practice problem</h2>
+          <p>Enter given statements and a goal. Use the buttons or type the symbols directly.</p>
+        </div>
+        <button class="dialog-close" id="composer-close" type="button" aria-label="Close practice problem editor">×</button>
+      </div>
+      <div class="composer-body">
+        <div class="composer-field">
+          <label for="custom-title">Problem title</label>
+          <input class="composer-input" id="custom-title" type="text" value="My practice proof" maxlength="80">
+        </div>
+
+        <div class="composer-field">
+          <span class="composer-legend" id="symbol-palette-label">Logical symbols</span>
+          <p class="composer-help">The symbol is inserted at the cursor in the formula box you last used. Keyboard forms such as <strong>forall</strong>, <strong>exists</strong>, <strong>-&gt;</strong>, <strong>&amp;</strong>, <strong>|</strong>, and <strong>~</strong> also work.</p>
+          <div class="symbol-palette" role="group" aria-labelledby="symbol-palette-label">
+            <button type="button" data-insert="(∀ c)()" data-back="1" aria-label="Insert for every c template">∀ c</button>
+            <button type="button" data-insert="(∃ c)()" data-back="1" aria-label="Insert there exists c template">∃ c</button>
+            <span class="symbol-divider" aria-hidden="true"></span>
+            <button type="button" data-insert="¬" aria-label="Insert not">¬</button>
+            <button type="button" data-insert=" ∧ " aria-label="Insert and">∧</button>
+            <button type="button" data-insert=" ∨ " aria-label="Insert or">∨</button>
+            <button type="button" data-insert=" → " aria-label="Insert implies">→</button>
+            <span class="symbol-divider" aria-hidden="true"></span>
+            <button type="button" data-insert="P(c)" aria-label="Insert predicate template P of c">P(c)</button>
+            <button type="button" data-insert="(" aria-label="Insert opening parenthesis">(</button>
+            <button type="button" data-insert=")" aria-label="Insert closing parenthesis">)</button>
+          </div>
+        </div>
+
+        <fieldset class="composer-field" style="border:0;padding:0">
+          <legend class="composer-legend">Given statements (axioms)</legend>
+          <p class="composer-help">Each box contains one complete statement. Add as many as the problem needs.</p>
+          <div class="axiom-editor-list" id="axiom-editor-list"></div>
+          <button class="add-axiom" id="add-axiom" type="button">Add another given</button>
+        </fieldset>
+
+        <div class="composer-field">
+          <label for="custom-goal">Goal to prove</label>
+          <textarea class="formula-input" id="custom-goal" rows="2" spellcheck="false" autocomplete="off">M(Scrat)</textarea>
+        </div>
+
+        <div class="composer-field">
+          <label for="custom-key">Predicate key</label>
+          <input class="composer-input" id="custom-key" type="text" value="S(c): c is a squirrel · M(c): c is a mammal">
+        </div>
+
+        <div class="formula-preview">
+          <h3>Formula preview</h3>
+          <ol class="preview-list" id="custom-preview"></ol>
+          <p class="composer-help" id="custom-toolkit-note"></p>
+        </div>
+        <p class="composer-status" id="composer-status" role="alert"></p>
+      </div>
+      <div class="composer-actions">
+        <button class="small-button" id="composer-cancel" type="button">Cancel</button>
+        <button class="primary-button" id="composer-start" type="submit">Build this practice proof</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const STORAGE_KEY = "cs227-proof-lab-v3";
+
+      const ruleGroups = [
+        {
+          title: "Open or close a world",
+          rules: ["ug", "mb", "ei", "cases"]
+        },
+        {
+          title: "Use what you know",
+          rules: ["ui", "detach", "andE", "demorgan", "dn"]
+        },
+        {
+          title: "Build a conclusion",
+          rules: ["eg", "andI", "orI"]
+        }
+      ];
+
+      const ruleLevelById = {
+        ug: 1, mb: 1, ui: 1, detach: 1,
+        ei: 2, eg: 2,
+        andI: 3, andE: 3,
+        orI: 4, cases: 4,
+        demorgan: 5, dn: 5
+      };
+
+      const levelDescriptions = {
+        1: "Only the four moves currently used in class are shown.",
+        2: "Adds existential instantiation and existential generalization.",
+        3: "Adds and introduction and and elimination.",
+        4: "Adds or introduction and proof by cases.",
+        5: "Adds De Morgan’s laws and double negation."
+      };
+
+      const rules = {
+        ug: {
+          abbr: "UG",
+          name: "Universal generalization",
+          help: "To prove something about every object, pretend that a named object is arbitrary. Prove the claim about that object without using anything special about it, then pop out of the arbitrary-object world."
+        },
+        mb: {
+          abbr: "MB",
+          name: "Make-believe",
+          help: "To prove an if–then statement, make believe the if-part is true. Derive the then-part inside that pretend world, then pop out and state the conditional."
+        },
+        ui: {
+          abbr: "UI",
+          name: "Universal instantiation",
+          help: "A statement about every object may be applied to any particular object or temporary name available in the proof."
+        },
+        detach: {
+          abbr: "DE",
+          name: "Detachment",
+          help: "From P and P → Q, conclude Q. Both pieces must be available in the same world."
+        },
+        ei: {
+          abbr: "EI",
+          name: "Existential instantiation",
+          help: "From a statement that something has a property, introduce a fresh name for such an object. The name is temporary: the final conclusion may not depend on which object received it."
+        },
+        eg: {
+          abbr: "EG",
+          name: "Existential generalization",
+          help: "If a particular named object has a property, conclude that at least one object has that property."
+        },
+        andI: {
+          abbr: "∧I",
+          name: "And introduction",
+          help: "From P and Q, conclude P ∧ Q. Both parts must already be established."
+        },
+        andE: {
+          abbr: "∧E",
+          name: "And elimination",
+          help: "From P ∧ Q, conclude either P or Q. A conjunction gives you both of its parts."
+        },
+        orI: {
+          abbr: "∨I",
+          name: "Or introduction",
+          help: "From P, conclude P ∨ Q (or Q ∨ P). An or-statement is true when at least one side is true."
+        },
+        cases: {
+          abbr: "∨E",
+          name: "Proof by cases",
+          help: "From P ∨ Q, prove the same goal once while pretending P and again while pretending Q. If both roads reach the goal, the goal follows. This is also called or elimination."
+        },
+        demorgan: {
+          abbr: "DM",
+          name: "De Morgan’s laws",
+          help: "Move a negation through and/or while switching the connective: ¬(P ∨ Q) is equivalent to ¬P ∧ ¬Q, and ¬(P ∧ Q) is equivalent to ¬P ∨ ¬Q."
+        },
+        dn: {
+          abbr: "DN",
+          name: "Double negation",
+          help: "P and ¬¬P are equivalent. Two consecutive negations may be introduced or removed."
+        }
+      };
+
+      const exercises = [
+        {
+          id: "simple-detachment",
+          level: 1,
+          title: "Scrat is a mammal",
+          kicker: "Detachment",
+          intro: "Begin with a conditional statement and the fact that makes its if-part true.",
+          key: "S(c): c is a squirrel · M(c): c is a mammal",
+          axioms: [
+            { label: "Axiom I", formula: "S(Scrat) → M(Scrat)" },
+            { label: "Axiom II", formula: "S(Scrat)" }
+          ],
+          target: "M(Scrat)",
+          steps: [
+            { id: "simpleDetach", rule: "detach", label: "Detach using the conditional and its if-part", formula: "∴ M(Scrat)", reason: "Detachment using Axioms I and II", depth: 0, kind: "conclusion", explain: "The if-part S(Scrat) is true, so the then-part M(Scrat) follows." }
+          ],
+          goal(done) {
+            return done.has("simpleDetach") ? ["Proof complete", "Every goal has been established"] : [this.target, "Look for a conditional whose then-part is the goal"];
+          },
+          worlds() { return []; }
+        },
+        {
+          id: "instantiate-scrat",
+          level: 1,
+          title: "Use a universal statement",
+          kicker: "UI and detachment",
+          intro: "Turn a statement about every creature into a statement about Scrat, then detach.",
+          key: "S(c): c is a squirrel · M(c): c is a mammal",
+          axioms: [
+            { label: "Axiom I", formula: "(∀ c)(S(c) → M(c))" },
+            { label: "Axiom II", formula: "S(Scrat)" }
+          ],
+          target: "M(Scrat)",
+          steps: [
+            { id: "scratUi", rule: "ui", label: "Apply Axiom I to Scrat", formula: "S(Scrat) → M(Scrat)", reason: "UI from Axiom I", depth: 0, explain: "Axiom I applies to every creature, so it applies to Scrat." },
+            { id: "scratDetach", rule: "detach", label: "Detach to reach the goal", formula: "∴ M(Scrat)", reason: refs => `Detachment using Axiom II and line ${refs("scratUi")}`, depth: 0, kind: "conclusion", deps: ["scratUi"], explain: "The instantiated conditional and S(Scrat) establish M(Scrat)." }
+          ],
+          goal(done) {
+            return done.has("scratDetach") ? ["Proof complete", "Every goal has been established"] : [this.target, "Make the universal axiom usable for Scrat"];
+          },
+          worlds() { return []; }
+        },
+        {
+          id: "named-conditional",
+          level: 1,
+          title: "If Scrat is a squirrel, Scrat is a vertebrate",
+          kicker: "Make-believe",
+          intro: "Open a make-believe world for the if-part, establish the then-part inside it, and then pop out.",
+          key: "S(c): c is a squirrel · M(c): c is a mammal · V(c): c is a vertebrate",
+          axioms: [
+            { label: "Axiom I", formula: "(∀ c)(S(c) → M(c))" },
+            { label: "Axiom II", formula: "(∀ c)(M(c) → V(c))" }
+          ],
+          target: "S(Scrat) → V(Scrat)",
+          steps: [
+            { id: "namedMbOpen", rule: "mb", label: "Make believe Scrat is a squirrel", formula: "Make believe S(Scrat)", reason: "Make believe", depth: 0, kind: "opens world", explain: "The goal is conditional, so temporarily assume its if-part." },
+            { id: "namedUiSM", rule: "ui", label: "Apply Axiom I to Scrat", formula: "S(Scrat) → M(Scrat)", reason: "UI from Axiom I", depth: 1, deps: ["namedMbOpen"], explain: "The universal statement applies to Scrat." },
+            { id: "namedUiMV", rule: "ui", label: "Apply Axiom II to Scrat", formula: "M(Scrat) → V(Scrat)", reason: "UI from Axiom II", depth: 1, deps: ["namedMbOpen"], explain: "This universal statement also applies to Scrat." },
+            { id: "namedDetachM", rule: "detach", label: "Detach to show Scrat is a mammal", formula: "M(Scrat)", reason: refs => `Detachment using lines ${refs("namedMbOpen")} and ${refs("namedUiSM")}`, depth: 1, deps: ["namedUiSM"], explain: "The make-believe assumption supplies the if-part." },
+            { id: "namedDetachV", rule: "detach", label: "Detach to show Scrat is a vertebrate", formula: "V(Scrat)", reason: refs => `Detachment using lines ${refs("namedDetachM")} and ${refs("namedUiMV")}`, depth: 1, deps: ["namedUiMV", "namedDetachM"], explain: "This establishes the then-part of the goal inside the pretend world." },
+            { id: "namedMbClose", rule: "mb", label: "Pop out of the make-believe world", formula: "∴ S(Scrat) → V(Scrat)", reason: refs => `Make-believe using lines ${refs("namedMbOpen")}–${refs("namedDetachV")}`, depth: 0, kind: "conclusion", deps: ["namedDetachV"], explain: "Because V(Scrat) followed from pretending S(Scrat), the conditional holds." }
+          ],
+          goal(done) {
+            if (!done.has("namedMbOpen")) return [this.target, "The goal is an if–then statement"];
+            if (!done.has("namedDetachV")) return ["V(Scrat)", "Inside the make-believe world S(Scrat)"];
+            if (!done.has("namedMbClose")) return [this.target, "The then-part is established; pop out"];
+            return ["Proof complete", "Every goal has been established"];
+          },
+          worlds(done) {
+            return done.has("namedMbOpen") && !done.has("namedMbClose") ? ["Make believe S(Scrat)"] : [];
+          }
+        },
+        {
+          id: "scopes",
+          level: 1,
+          title: "Squirrels are vertebrates",
+          kicker: "Proof 1 · Pretend worlds",
+          intro: "Coordinate arbitrary objects and make-believe worlds while keeping each fact in the correct scope.",
+          key: "S(c): c is a squirrel · M(c): c is a mammal · V(c): c is a vertebrate",
+          axioms: [
+            { label: "Axiom I", formula: "(∀ c)(S(c) → M(c))" },
+            { label: "Axiom II", formula: "(∀ c)(M(c) → V(c))" }
+          ],
+          target: "(∀ c)(S(c) → V(c))",
+          steps: [
+            { id: "ugOpen", rule: "ug", label: "Pretend Bob is an arbitrary creature", formula: "Pretend Bob is an arbitrary creature.", reason: "Open an arbitrary-object world", depth: 0, kind: "opens world", explain: "Bob is a fresh temporary name for an arbitrary creature. No premise or open assumption may single Bob out." },
+            { id: "mbOpen", rule: "mb", label: "Make believe Bob is a squirrel", formula: "Make believe S(Bob)", reason: "Make believe", depth: 1, kind: "assumption", deps: ["ugOpen"], explain: "The target inside Bob’s world is conditional, so assume its if-part." },
+            { id: "uiSM", rule: "ui", label: "Apply Axiom I to Bob", formula: "S(Bob) → M(Bob)", reason: "UI from Axiom I", depth: 2, deps: ["mbOpen"], explain: "Axiom I applies to every creature, including Bob." },
+            { id: "uiMV", rule: "ui", label: "Apply Axiom II to Bob", formula: "M(Bob) → V(Bob)", reason: "UI from Axiom II", depth: 2, deps: ["mbOpen"], explain: "Axiom II also applies to Bob. This step may be taken before or after the first detachment." },
+            { id: "detachM", rule: "detach", label: "Detach to show Bob is a mammal", formula: "M(Bob)", reason: refs => `Detachment using lines ${refs("mbOpen")} and ${refs("uiSM")}`, depth: 2, deps: ["uiSM", "mbOpen"], explain: "S(Bob) and S(Bob) → M(Bob) give M(Bob)." },
+            { id: "detachV", rule: "detach", label: "Detach to show Bob is a vertebrate", formula: "V(Bob)", reason: refs => `Detachment using lines ${refs("detachM")} and ${refs("uiMV")}`, depth: 2, deps: ["detachM", "uiMV"], explain: "M(Bob) and M(Bob) → V(Bob) give the goal inside the make-believe world." },
+            { id: "mbClose", rule: "mb", label: "Pop out of the make-believe world", formula: "∴ S(Bob) → V(Bob)", reason: refs => `Make-believe using lines ${refs("mbOpen")}–${refs("detachV")}`, depth: 1, kind: "closes world", deps: ["detachV"], explain: "Because V(Bob) followed from pretending S(Bob), the conditional holds." },
+            { id: "ugClose", rule: "ug", label: "Pop out of Bob’s arbitrary world", formula: "∴ (∀ c)(S(c) → V(c))", reason: refs => `UG using lines ${refs("ugOpen")}–${refs("mbClose")}`, depth: 0, kind: "conclusion", deps: ["mbClose"], explain: "Nothing special about Bob was used, so the result holds for every creature." }
+          ],
+          goal(done) {
+            if (!done.has("ugOpen")) return [this.target, "Main goal"];
+            if (!done.has("mbOpen")) return ["S(Bob) → V(Bob)", "Inside Bob’s arbitrary world"];
+            if (!done.has("detachV")) return ["V(Bob)", "Inside the make-believe world S(Bob)"];
+            if (!done.has("mbClose")) return ["S(Bob) → V(Bob)", "Ready to pop out of the make-believe world"];
+            if (!done.has("ugClose")) return [this.target, "Ready to pop out of Bob’s arbitrary world"];
+            return ["Proof complete", "Every goal has been established"];
+          },
+          worlds(done) {
+            const open = [];
+            if (done.has("ugOpen") && !done.has("ugClose")) open.push("Bob is an arbitrary creature");
+            if (done.has("mbOpen") && !done.has("mbClose")) open.push("Make believe S(Bob)");
+            return open;
+          }
+        },
+        {
+          id: "conjunction",
+          level: 3,
+          title: "Reassemble a conjunction",
+          kicker: "Proof 2 · And",
+          intro: "A conjunction provides both of its parts. Once separated, the parts may be joined in a new order.",
+          key: "S(c): c is a squirrel · F(c): c is fearful",
+          axioms: [
+            { label: "Axiom I", formula: "S(Scrat) ∧ F(Scrat)" }
+          ],
+          target: "F(Scrat) ∧ S(Scrat)",
+          steps: [
+            { id: "andLeft", rule: "andE", label: "Take the squirrel part from Axiom I", formula: "S(Scrat)", reason: "And elimination from Axiom I", depth: 0, explain: "A conjunction guarantees each of its two parts." },
+            { id: "andRight", rule: "andE", label: "Take the fearful part from Axiom I", formula: "F(Scrat)", reason: "And elimination from Axiom I", depth: 0, explain: "Either part may be extracted first." },
+            { id: "andBuild", rule: "andI", label: "Join the two established facts in the needed order", formula: "∴ F(Scrat) ∧ S(Scrat)", reason: refs => `And introduction using lines ${refs("andRight")} and ${refs("andLeft")}`, depth: 0, kind: "conclusion", deps: ["andLeft", "andRight"], explain: "Both parts of the target are now available." }
+          ],
+          goal(done) {
+            if (!done.has("andBuild")) return [this.target, "Establish both parts, then join them"];
+            return ["Proof complete", "Every goal has been established"];
+          },
+          worlds() { return []; }
+        },
+        {
+          id: "existence",
+          level: 2,
+          title: "Someone is a mammal",
+          kicker: "Proof 3 · Existence",
+          intro: "Move from a fact about one named creature to a statement that at least one such creature exists.",
+          key: "M(c): c is a mammal",
+          axioms: [
+            { label: "Axiom I", formula: "M(Scrat)" }
+          ],
+          target: "(∃ c) M(c)",
+          steps: [
+            { id: "egMammal", rule: "eg", label: "Use Scrat as evidence that a mammal exists", formula: "∴ (∃ c) M(c)", reason: "Existential generalization from Axiom I", depth: 0, kind: "conclusion", explain: "Scrat is one particular object that satisfies M(c), so at least one object does." }
+          ],
+          goal(done) {
+            return done.has("egMammal") ? ["Proof complete", "Every goal has been established"] : [this.target, "Find one object that has the required property"];
+          },
+          worlds() { return []; }
+        },
+        {
+          id: "witness",
+          level: 3,
+          title: "A respected creature exists",
+          kicker: "Proof 4 · A temporary witness",
+          intro: "Use an unnamed existential witness without allowing the final conclusion to depend on its temporary name.",
+          key: "S(c): c is a squirrel · F(c): c is fearful · R(c): c is respected",
+          axioms: [
+            { label: "Axiom I", formula: "(∃ c)(S(c) ∧ F(c))" },
+            { label: "Axiom II", formula: "(∀ c)(F(c) → R(c))" }
+          ],
+          target: "(∃ c) R(c)",
+          steps: [
+            { id: "eiOpen", rule: "ei", label: "Give the existential witness the fresh name Ari", formula: "S(Ari) ∧ F(Ari)", reason: "EI from Axiom I; Ari is a fresh name", depth: 0, kind: "opens world", explain: "Ari names whichever creature makes Axiom I true. No earlier fact mentions Ari." },
+            { id: "andFear", rule: "andE", label: "Take the fearful part of the witness information", formula: "F(Ari)", reason: refs => `And elimination from line ${refs("eiOpen")}`, depth: 1, deps: ["eiOpen"], explain: "The conjunction supplied by the existential witness includes F(Ari)." },
+            { id: "uiRespect", rule: "ui", label: "Apply Axiom II to Ari", formula: "F(Ari) → R(Ari)", reason: "UI from Axiom II", depth: 1, deps: ["eiOpen"], explain: "The universal rule applies to the temporary witness too." },
+            { id: "detachRespect", rule: "detach", label: "Detach to show Ari is respected", formula: "R(Ari)", reason: refs => `Detachment using lines ${refs("andFear")} and ${refs("uiRespect")}`, depth: 1, deps: ["andFear", "uiRespect"], explain: "The witness fears something and every such creature is respected." },
+            { id: "egRespect", rule: "eg", label: "Generalize away from the temporary name", formula: "(∃ c) R(c)", reason: refs => `EG from line ${refs("detachRespect")}`, depth: 1, deps: ["detachRespect"], explain: "The new statement says only that someone is respected; it does not name Ari." },
+            { id: "eiClose", rule: "ei", label: "Pop out of the temporary-witness world", formula: "∴ (∃ c) R(c)", reason: refs => `EI using Axiom I and lines ${refs("eiOpen")}–${refs("egRespect")}`, depth: 0, kind: "conclusion", deps: ["egRespect"], explain: "The conclusion no longer contains the temporary name, so the witness world may be closed." }
+          ],
+          goal(done) {
+            if (!done.has("eiOpen")) return [this.target, "Use the existential information without choosing a known creature"];
+            if (!done.has("egRespect")) return ["(∃ c) R(c)", "Inside Ari’s temporary-witness world"];
+            if (!done.has("eiClose")) return [this.target, "The conclusion is name-free; close the witness world"];
+            return ["Proof complete", "Every goal has been established"];
+          },
+          worlds(done) {
+            return done.has("eiOpen") && !done.has("eiClose") ? ["Ari is a fresh name for the witness in Axiom I"] : [];
+          }
+        },
+        {
+          id: "existential-witness",
+          level: 2,
+          title: "A respected creature exists",
+          kicker: "Existential instantiation",
+          intro: "Give an unknown witness a fresh temporary name, reason about it, and leave the name behind before closing its world.",
+          key: "F(c): c is fearful · R(c): c is respected",
+          axioms: [
+            { label: "Axiom I", formula: "(∃ c)F(c)" },
+            { label: "Axiom II", formula: "(∀ c)(F(c) → R(c))" }
+          ],
+          target: "(∃ c)R(c)",
+          steps: [
+            { id: "simpleEiOpen", rule: "ei", label: "Give the unknown fearful creature the fresh name Ari", formula: "F(Ari)", reason: "EI from Axiom I; Ari is fresh", depth: 0, kind: "opens world", explain: "Ari temporarily names whichever creature makes Axiom I true." },
+            { id: "simpleEiUi", rule: "ui", label: "Apply Axiom II to Ari", formula: "F(Ari) → R(Ari)", reason: "UI from Axiom II", depth: 1, deps: ["simpleEiOpen"], explain: "Universal statements apply to a temporary existential witness." },
+            { id: "simpleEiDetach", rule: "detach", label: "Detach to show Ari is respected", formula: "R(Ari)", reason: refs => `Detachment using lines ${refs("simpleEiOpen")} and ${refs("simpleEiUi")}`, depth: 1, deps: ["simpleEiUi"], explain: "The witness is fearful, and every fearful creature is respected." },
+            { id: "simpleEiEg", rule: "eg", label: "Generalize away from the temporary name", formula: "(∃ c)R(c)", reason: refs => `EG from line ${refs("simpleEiDetach")}`, depth: 1, deps: ["simpleEiDetach"], explain: "The existential conclusion no longer names Ari." },
+            { id: "simpleEiClose", rule: "ei", label: "Pop out of Ari’s temporary-witness world", formula: "∴ (∃ c)R(c)", reason: refs => `EI using Axiom I and lines ${refs("simpleEiOpen")}–${refs("simpleEiEg")}`, depth: 0, kind: "conclusion", deps: ["simpleEiEg"], explain: "The conclusion does not depend on which witness was temporarily named Ari." }
+          ],
+          goal(done) {
+            if (!done.has("simpleEiOpen")) return [this.target, "Use the existential given without choosing a known creature"];
+            if (!done.has("simpleEiEg")) return ["(∃ c)R(c)", "Inside Ari’s temporary-witness world"];
+            if (!done.has("simpleEiClose")) return [this.target, "The conclusion is name-free; close the witness world"];
+            return ["Proof complete", "Every goal has been established"];
+          },
+          worlds(done) {
+            return done.has("simpleEiOpen") && !done.has("simpleEiClose") ? ["Ari is a fresh name for the witness in Axiom I"] : [];
+          }
+        },
+        {
+          id: "or-introduction",
+          level: 4,
+          title: "At least one is true",
+          kicker: "Proof 5 · Or",
+          intro: "An or-statement requires at least one side, not both. Use the fact already available.",
+          key: "M(c): c is a mammal · F(c): c is fearful",
+          axioms: [
+            { label: "Axiom I", formula: "M(Scrat)" }
+          ],
+          target: "M(Scrat) ∨ F(Scrat)",
+          steps: [
+            { id: "orBuild", rule: "orI", label: "Use the left side, which is already known", formula: "∴ M(Scrat) ∨ F(Scrat)", reason: "Or introduction from Axiom I", depth: 0, kind: "conclusion", explain: "The whole disjunction is true because its left side is true. Nothing about F(Scrat) is required." }
+          ],
+          goal(done) {
+            return done.has("orBuild") ? ["Proof complete", "Every goal has been established"] : [this.target, "Establish either side of the or-statement"];
+          },
+          worlds() { return []; }
+        },
+        {
+          id: "cases",
+          level: 4,
+          title: "Every squirrel is respected",
+          kicker: "Proof 6 · Proof by cases",
+          intro: "A squirrel may be fearful or helpful. Show that either possibility reaches the same goal.",
+          key: "S(c): c is a squirrel · F(c): c is fearful · H(c): c is helpful · R(c): c is respected",
+          axioms: [
+            { label: "Axiom I", formula: "(∀ c)(S(c) → (F(c) ∨ H(c)))" },
+            { label: "Axiom II", formula: "(∀ c)(F(c) → R(c))" },
+            { label: "Axiom III", formula: "(∀ c)(H(c) → R(c))" }
+          ],
+          target: "(∀ c)(S(c) → R(c))",
+          steps: [
+            { id: "caseUgOpen", rule: "ug", label: "Pretend Bob is an arbitrary creature", formula: "Pretend Bob is an arbitrary creature.", reason: "Open an arbitrary-object world", depth: 0, kind: "opens world", explain: "The outer goal is universal." },
+            { id: "caseMbOpen", rule: "mb", label: "Make believe Bob is a squirrel", formula: "Make believe S(Bob)", reason: "Make believe", depth: 1, kind: "assumption", deps: ["caseUgOpen"], explain: "The goal inside Bob’s world is conditional." },
+            { id: "uiSplit", rule: "ui", label: "Apply Axiom I to Bob", formula: "S(Bob) → (F(Bob) ∨ H(Bob))", reason: "UI from Axiom I", depth: 2, deps: ["caseMbOpen"], explain: "This supplies the two possibilities that will become cases." },
+            { id: "uiFear", rule: "ui", label: "Apply Axiom II to Bob", formula: "F(Bob) → R(Bob)", reason: "UI from Axiom II", depth: 2, deps: ["caseMbOpen"], explain: "This rule will be useful in the fearful case." },
+            { id: "uiHelp", rule: "ui", label: "Apply Axiom III to Bob", formula: "H(Bob) → R(Bob)", reason: "UI from Axiom III", depth: 2, deps: ["caseMbOpen"], explain: "This rule will be useful in the helpful case." },
+            { id: "split", rule: "detach", label: "Detach to obtain the two cases", formula: "F(Bob) ∨ H(Bob)", reason: refs => `Detachment using lines ${refs("caseMbOpen")} and ${refs("uiSplit")}`, depth: 2, deps: ["caseMbOpen", "uiSplit"], explain: "Because Bob is a squirrel, Bob must be fearful or helpful." },
+            { id: "caseFearOpen", rule: "cases", label: "Case 1: make believe Bob is fearful", formula: "Case 1: F(Bob)", reason: refs => `First case from line ${refs("split")}`, depth: 2, kind: "opens case", deps: ["split", "uiFear", "uiHelp"], explain: "The first branch temporarily assumes the left side of the disjunction." },
+            { id: "caseFearGoal", rule: "detach", label: "Reach the goal in the fearful case", formula: "R(Bob)", reason: refs => `Detachment using lines ${refs("caseFearOpen")} and ${refs("uiFear")}`, depth: 3, deps: ["caseFearOpen", "uiFear"], explain: "The fearful branch reaches R(Bob)." },
+            { id: "caseFearClose", rule: "cases", label: "Close the fearful case", formula: "End Case 1: R(Bob)", reason: refs => `Case 1 established by line ${refs("caseFearGoal")}`, depth: 2, kind: "closes case", deps: ["caseFearGoal"], explain: "Record that the first possible road reaches the common goal." },
+            { id: "caseHelpOpen", rule: "cases", label: "Case 2: make believe Bob is helpful", formula: "Case 2: H(Bob)", reason: refs => `Second case from line ${refs("split")}`, depth: 2, kind: "opens case", deps: ["caseFearClose"], explain: "Now examine the other side of the same disjunction." },
+            { id: "caseHelpGoal", rule: "detach", label: "Reach the goal in the helpful case", formula: "R(Bob)", reason: refs => `Detachment using lines ${refs("caseHelpOpen")} and ${refs("uiHelp")}`, depth: 3, deps: ["caseHelpOpen", "uiHelp"], explain: "The helpful branch reaches the same goal." },
+            { id: "caseHelpClose", rule: "cases", label: "Close the helpful case", formula: "End Case 2: R(Bob)", reason: refs => `Case 2 established by line ${refs("caseHelpGoal")}`, depth: 2, kind: "closes case", deps: ["caseHelpGoal"], explain: "Both possible roads now reach R(Bob)." },
+            { id: "casesClose", rule: "cases", label: "Conclude the shared result by proof by cases", formula: "R(Bob)", reason: refs => `Proof by cases using lines ${refs("split")}–${refs("caseHelpClose")}`, depth: 2, deps: ["caseFearClose", "caseHelpClose"], explain: "The disjunction covers all possibilities, and each possibility gives R(Bob)." },
+            { id: "caseMbClose", rule: "mb", label: "Pop out of the squirrel make-believe world", formula: "∴ S(Bob) → R(Bob)", reason: refs => `Make-believe using lines ${refs("caseMbOpen")}–${refs("casesClose")}`, depth: 1, kind: "closes world", deps: ["casesClose"], explain: "R(Bob) followed from pretending S(Bob)." },
+            { id: "caseUgClose", rule: "ug", label: "Pop out of Bob’s arbitrary world", formula: "∴ (∀ c)(S(c) → R(c))", reason: refs => `UG using lines ${refs("caseUgOpen")}–${refs("caseMbClose")}`, depth: 0, kind: "conclusion", deps: ["caseMbClose"], explain: "The argument used nothing special about Bob." }
+          ],
+          goal(done) {
+            if (!done.has("caseUgOpen")) return [this.target, "Main goal"];
+            if (!done.has("caseMbOpen")) return ["S(Bob) → R(Bob)", "Inside Bob’s arbitrary world"];
+            if (!done.has("split")) return ["R(Bob)", "First identify the possibilities for Bob"];
+            if (!done.has("caseFearClose")) return ["R(Bob)", "Case 1: make believe F(Bob)"];
+            if (!done.has("caseHelpClose")) return ["R(Bob)", "Case 2: make believe H(Bob)"];
+            if (!done.has("casesClose")) return ["R(Bob)", "Both cases reached the goal; close the case split"];
+            if (!done.has("caseMbClose")) return ["S(Bob) → R(Bob)", "Ready to leave the squirrel world"];
+            if (!done.has("caseUgClose")) return [this.target, "Ready to leave Bob’s arbitrary world"];
+            return ["Proof complete", "Every goal has been established"];
+          },
+          worlds(done) {
+            const open = [];
+            if (done.has("caseUgOpen") && !done.has("caseUgClose")) open.push("Bob is an arbitrary creature");
+            if (done.has("caseMbOpen") && !done.has("caseMbClose")) open.push("Make believe S(Bob)");
+            if (done.has("caseFearOpen") && !done.has("caseFearClose")) open.push("Case 1: make believe F(Bob)");
+            if (done.has("caseHelpOpen") && !done.has("caseHelpClose")) open.push("Case 2: make believe H(Bob)");
+            return open;
+          }
+        },
+        {
+          id: "negation",
+          level: 5,
+          title: "Move a negation inward",
+          kicker: "Proof 7 · Negation laws",
+          intro: "Remove a double negation, then use De Morgan’s law to expose the structure of the claim.",
+          key: "P and Q stand for statements that may be true or false.",
+          axioms: [
+            { label: "Axiom I", formula: "¬¬¬(P ∨ Q)" }
+          ],
+          target: "¬P ∧ ¬Q",
+          steps: [
+            { id: "doubleNeg", rule: "dn", label: "Remove the outer double negation", formula: "¬(P ∨ Q)", reason: "Double negation from Axiom I", depth: 0, explain: "View the axiom as ¬¬[¬(P ∨ Q)] and remove the first two negations." },
+            { id: "deMorgan", rule: "demorgan", label: "Move the remaining negation through the or", formula: "∴ ¬P ∧ ¬Q", reason: refs => `De Morgan’s law from line ${refs("doubleNeg")}`, depth: 0, kind: "conclusion", deps: ["doubleNeg"], explain: "Negating an or-statement says that neither side is true." }
+          ],
+          goal(done) {
+            if (!done.has("doubleNeg")) return [this.target, "First reveal the singly negated statement"];
+            if (!done.has("deMorgan")) return [this.target, "Rewrite the negation of an or-statement"];
+            return ["Proof complete", "Every goal has been established"];
+          },
+          worlds() { return []; }
+        }
+      ];
+
+      const exerciseSequence = [
+        "simple-detachment",
+        "instantiate-scrat",
+        "named-conditional",
+        "scopes",
+        "existence",
+        "existential-witness",
+        "conjunction",
+        "witness",
+        "or-introduction",
+        "cases",
+        "negation"
+      ];
+
+      function availableExercises() {
+        return exerciseSequence
+          .map(id => exercises.find(exercise => exercise.id === id))
+          .filter(exercise => exercise && exercise.level <= state.ruleLevel);
+      }
+
+      const state = {
+        exerciseIndex: 0,
+        ruleLevel: 1,
+        customMode: false,
+        customExercise: null,
+        customProblemSpec: null,
+        completedByExercise: {},
+        proofOrderByExercise: {},
+        completedExercises: new Set(),
+        selectedRule: null,
+        notesVisible: false,
+        hintedStep: null
+      };
+
+      const els = {
+        lessonSelect: document.getElementById("lesson-select"),
+        ruleLevelSelect: document.getElementById("rule-level-select"),
+        levelDescription: document.getElementById("level-description"),
+        lessonKicker: document.getElementById("lesson-kicker"),
+        problemHeading: document.getElementById("problem-heading"),
+        problemIntro: document.getElementById("problem-intro"),
+        predicateKey: document.getElementById("predicate-key"),
+        axiomList: document.getElementById("axiom-list"),
+        targetFormula: document.getElementById("target-formula"),
+        worldStack: document.getElementById("world-stack"),
+        progressText: document.getElementById("progress-text"),
+        progressFill: document.getElementById("progress-fill"),
+        progressTrack: document.getElementById("progress-track"),
+        moveCount: document.getElementById("move-count"),
+        currentGoal: document.getElementById("current-goal"),
+        goalContext: document.getElementById("goal-context"),
+        goalBanner: document.getElementById("goal-banner"),
+        popOutButton: document.getElementById("pop-out-button"),
+        proofSheet: document.getElementById("proof-sheet"),
+        completionRegion: document.getElementById("completion-region"),
+        ruleGroups: document.getElementById("rule-groups"),
+        applicationPanel: document.getElementById("application-panel"),
+        ruleHelp: document.getElementById("rule-help"),
+        ruleReference: document.getElementById("rule-reference"),
+        notesToggle: document.getElementById("notes-toggle"),
+        hintButton: document.getElementById("hint-button"),
+        undoButton: document.getElementById("undo-button"),
+        resetButton: document.getElementById("reset-button"),
+        announcer: document.getElementById("announcer"),
+        customProblemButton: document.getElementById("custom-problem-button"),
+        problemComposer: document.getElementById("problem-composer"),
+        composerForm: document.getElementById("composer-form"),
+        composerClose: document.getElementById("composer-close"),
+        composerCancel: document.getElementById("composer-cancel"),
+        composerStart: document.getElementById("composer-start"),
+        customTitle: document.getElementById("custom-title"),
+        customGoal: document.getElementById("custom-goal"),
+        customKey: document.getElementById("custom-key"),
+        axiomEditorList: document.getElementById("axiom-editor-list"),
+        addAxiom: document.getElementById("add-axiom"),
+        customPreview: document.getElementById("custom-preview"),
+        customToolkitNote: document.getElementById("custom-toolkit-note"),
+        composerStatus: document.getElementById("composer-status")
+      };
+
+      function currentExercise() { return state.customMode && state.customExercise ? state.customExercise : exercises[state.exerciseIndex]; }
+
+      function currentDone() {
+        const id = currentExercise().id;
+        if (!state.completedByExercise[id]) state.completedByExercise[id] = new Set();
+        return state.completedByExercise[id];
+      }
+
+      function currentOrder() {
+        const id = currentExercise().id;
+        if (!state.proofOrderByExercise[id]) state.proofOrderByExercise[id] = [];
+        return state.proofOrderByExercise[id];
+      }
+
+      function saveState() {
+        const serializedDone = {};
+        for (const [id, values] of Object.entries(state.completedByExercise)) serializedDone[id] = [...values];
+        const payload = {
+          exerciseId: currentExercise().id,
+          ruleLevel: state.ruleLevel,
+          customMode: state.customMode,
+          customProblemSpec: state.customProblemSpec,
+          completedByExercise: serializedDone,
+          proofOrderByExercise: state.proofOrderByExercise,
+          completedExercises: [...state.completedExercises],
+          notesVisible: state.notesVisible
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const saved = JSON.parse(raw);
+          const index = exercises.findIndex(ex => ex.id === saved.exerciseId);
+          if (index >= 0) state.exerciseIndex = index;
+          state.ruleLevel = Math.min(5, Math.max(1, Number(saved.ruleLevel) || 1));
+          state.customProblemSpec = saved.customProblemSpec || null;
+          if (state.customProblemSpec) {
+            try {
+              state.customExercise = buildCustomExercise(state.customProblemSpec, state.ruleLevel);
+              state.customMode = Boolean(saved.customMode);
+            } catch (error) {
+              state.customExercise = null;
+              state.customMode = false;
+            }
+          }
+          for (const [id, values] of Object.entries(saved.completedByExercise || {})) {
+            state.completedByExercise[id] = new Set(values);
+          }
+          state.proofOrderByExercise = saved.proofOrderByExercise || {};
+          state.completedExercises = new Set(saved.completedExercises || []);
+          state.notesVisible = Boolean(saved.notesVisible);
+          if (!state.customMode && exercises[state.exerciseIndex]?.level > state.ruleLevel) {
+            const first = availableExercises()[0];
+            state.exerciseIndex = exercises.findIndex(exercise => exercise.id === first.id);
+          }
+        } catch (error) {
+          console.warn("Saved progress could not be read.", error);
+        }
+      }
+
+      function speakFormula(text) {
+        return text
+          .replaceAll("∴", "therefore")
+          .replaceAll("∀", "for every")
+          .replaceAll("∃", "there exists")
+          .replaceAll("→", "implies")
+          .replaceAll("∧", "and")
+          .replaceAll("∨", "or")
+          .replaceAll("¬", "not ")
+          .replaceAll("–", " through ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function formulaNode(text, className = "formula") {
+        const span = document.createElement("span");
+        span.className = className;
+        span.textContent = text;
+        span.setAttribute("role", "math");
+        span.setAttribute("aria-label", speakFormula(text));
+        return span;
+      }
+
+      function normalizeFormulaInput(raw) {
+        return String(raw || "")
+          .replace(/\bforall\b/gi, "∀")
+          .replace(/\bexists\b/gi, "∃")
+          .replace(/<->/g, "↔")
+          .replace(/->/g, "→")
+          .replace(/&&|&/g, "∧")
+          .replace(/\|\||\|/g, "∨")
+          .replace(/[~!]/g, "¬")
+          .replace(/\(\s*([∀∃])\s*([A-Za-z][A-Za-z0-9_]*)\s*\)/g, "$1 $2 ")
+          .trim();
+      }
+
+      function tokenizeFormula(raw) {
+        const source = normalizeFormulaInput(raw);
+        const tokens = [];
+        let position = 0;
+        while (position < source.length) {
+          const whitespace = source.slice(position).match(/^\s+/);
+          if (whitespace) {
+            position += whitespace[0].length;
+            continue;
+          }
+          const match = source.slice(position).match(/^(∀|∃|¬|∧|∨|→|\(|\)|,|[A-Za-z][A-Za-z0-9_]*)/);
+          if (!match) throw new Error(`I do not recognize the symbol near “${source.slice(position, position + 8)}”.`);
+          tokens.push(match[1]);
+          position += match[1].length;
+        }
+        return tokens;
+      }
+
+      function parseFormula(raw) {
+        const tokens = tokenizeFormula(raw);
+        let position = 0;
+        const peek = () => tokens[position];
+        const take = expected => {
+          const token = tokens[position];
+          if (expected && token !== expected) throw new Error(`Expected “${expected}” but found “${token || "the end"}”.`);
+          position += 1;
+          return token;
+        };
+
+        function parseImplication() {
+          let left = parseOr();
+          if (peek() === "→") {
+            take("→");
+            left = { type: "imp", left, right: parseImplication() };
+          }
+          return left;
+        }
+
+        function parseOr() {
+          let left = parseAnd();
+          while (peek() === "∨") {
+            take("∨");
+            left = { type: "or", left, right: parseAnd() };
+          }
+          return left;
+        }
+
+        function parseAnd() {
+          let left = parseUnary();
+          while (peek() === "∧") {
+            take("∧");
+            left = { type: "and", left, right: parseUnary() };
+          }
+          return left;
+        }
+
+        function parseUnary() {
+          if (peek() === "¬") {
+            take("¬");
+            return { type: "not", value: parseUnary() };
+          }
+          if (peek() === "∀" || peek() === "∃") {
+            const quantifier = take();
+            const variable = take();
+            if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(variable || "")) throw new Error("A quantifier must be followed by a variable name.");
+            return { type: quantifier === "∀" ? "forall" : "exists", variable, body: parseImplication() };
+          }
+          return parsePrimary();
+        }
+
+        function parsePrimary() {
+          if (peek() === "(") {
+            take("(");
+            const expression = parseImplication();
+            take(")");
+            return expression;
+          }
+          const name = take();
+          if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name || "")) throw new Error(`Expected a predicate but found “${name || "the end"}”.`);
+          const args = [];
+          if (peek() === "(") {
+            take("(");
+            if (peek() !== ")") {
+              while (true) {
+                const term = take();
+                if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(term || "")) throw new Error("Predicate arguments must be names or variables.");
+                args.push(term);
+                if (peek() !== ",") break;
+                take(",");
+              }
+            }
+            take(")");
+          }
+          return { type: "pred", name, args };
+        }
+
+        if (tokens.length === 0) throw new Error("Enter a formula.");
+        const result = parseImplication();
+        if (position !== tokens.length) throw new Error(`I did not expect “${tokens[position]}” here.`);
+        return result;
+      }
+
+      function formulaPrecedence(ast) {
+        return { imp: 1, or: 2, and: 3, forall: 4, exists: 4, not: 5, pred: 6 }[ast.type] || 0;
+      }
+
+      function formatFormula(ast, parentPrecedence = 0) {
+        const precedence = formulaPrecedence(ast);
+        let text;
+        if (ast.type === "pred") text = ast.args.length ? `${ast.name}(${ast.args.join(", ")})` : ast.name;
+        else if (ast.type === "not") text = `¬${formatFormula(ast.value, precedence)}`;
+        else if (ast.type === "forall" || ast.type === "exists") {
+          const symbol = ast.type === "forall" ? "∀" : "∃";
+          text = `(${symbol} ${ast.variable})${formatFormula(ast.body, precedence)}`;
+        } else {
+          const symbol = ast.type === "imp" ? "→" : ast.type === "and" ? "∧" : "∨";
+          text = `${formatFormula(ast.left, precedence)} ${symbol} ${formatFormula(ast.right, ast.type === "imp" ? precedence : precedence + 1)}`;
+        }
+        return precedence < parentPrecedence ? `(${text})` : text;
+      }
+
+      function formulasEqual(left, right) { return formatFormula(left) === formatFormula(right); }
+
+      function substituteFormula(ast, variable, term) {
+        if (ast.type === "pred") return { ...ast, args: ast.args.map(arg => arg === variable ? term : arg) };
+        if (ast.type === "not") return { type: "not", value: substituteFormula(ast.value, variable, term) };
+        if (ast.type === "forall" || ast.type === "exists") {
+          if (ast.variable === variable) return ast;
+          return { ...ast, body: substituteFormula(ast.body, variable, term) };
+        }
+        return { ...ast, left: substituteFormula(ast.left, variable, term), right: substituteFormula(ast.right, variable, term) };
+      }
+
+      function collectFormulaTerms(ast, bound = new Set(), output = new Set()) {
+        if (ast.type === "pred") {
+          ast.args.forEach(arg => { if (!bound.has(arg)) output.add(arg); });
+        } else if (ast.type === "not") collectFormulaTerms(ast.value, bound, output);
+        else if (ast.type === "forall" || ast.type === "exists") {
+          const nextBound = new Set(bound);
+          nextBound.add(ast.variable);
+          collectFormulaTerms(ast.body, nextBound, output);
+        } else {
+          collectFormulaTerms(ast.left, bound, output);
+          collectFormulaTerms(ast.right, bound, output);
+        }
+        return output;
+      }
+
+      function formulaContainsTerm(ast, term) {
+        if (ast.type === "pred") return ast.args.includes(term);
+        if (ast.type === "not") return formulaContainsTerm(ast.value, term);
+        if (ast.type === "forall" || ast.type === "exists") return formulaContainsTerm(ast.body, term);
+        return formulaContainsTerm(ast.left, term) || formulaContainsTerm(ast.right, term);
+      }
+
+      function formulaRuleLevel(ast) {
+        if (ast.type === "exists") return Math.max(2, formulaRuleLevel(ast.body));
+        if (ast.type === "and") return Math.max(3, formulaRuleLevel(ast.left), formulaRuleLevel(ast.right));
+        if (ast.type === "or") return Math.max(4, formulaRuleLevel(ast.left), formulaRuleLevel(ast.right));
+        if (ast.type === "not") return Math.max(5, formulaRuleLevel(ast.value));
+        if (ast.type === "forall") return Math.max(1, formulaRuleLevel(ast.body));
+        if (ast.type === "imp") return Math.max(formulaRuleLevel(ast.left), formulaRuleLevel(ast.right));
+        return 1;
+      }
+
+      function deMorganTransform(ast) {
+        if (ast.type === "not" && ast.value.type === "or") {
+          return { type: "and", left: { type: "not", value: ast.value.left }, right: { type: "not", value: ast.value.right } };
+        }
+        if (ast.type === "not" && ast.value.type === "and") {
+          return { type: "or", left: { type: "not", value: ast.value.left }, right: { type: "not", value: ast.value.right } };
+        }
+        if (ast.type === "and" && ast.left.type === "not" && ast.right.type === "not") {
+          return { type: "not", value: { type: "or", left: ast.left.value, right: ast.right.value } };
+        }
+        if (ast.type === "or" && ast.left.type === "not" && ast.right.type === "not") {
+          return { type: "not", value: { type: "and", left: ast.left.value, right: ast.right.value } };
+        }
+        return null;
+      }
+
+      function buildCustomExercise(spec, selectedLevel) {
+        const parsedAxioms = spec.axioms.map((formula, index) => ({
+          ast: parseFormula(formula),
+          label: `Axiom ${["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][index] || index + 1}`,
+          stepId: null
+        }));
+        const targetAst = parseFormula(spec.goal);
+        const targetText = formatFormula(targetAst);
+        const steps = [];
+        const allTerms = new Set();
+        parsedAxioms.forEach(item => collectFormulaTerms(item.ast, new Set(), allTerms));
+        collectFormulaTerms(targetAst, new Set(), allTerms);
+        if (allTerms.size === 0) allTerms.add("Scrat");
+        let stepCounter = 0;
+        const visiting = new Set();
+        const usedExistentialSources = new Set();
+        const usedCaseSources = new Set();
+
+        function unique(values) { return [...new Set(values.filter(Boolean))]; }
+
+        function sourceText(item, refs) {
+          return item.label || `line ${refs(item.stepId)}`;
+        }
+
+        function addStep({ rule, label, formula, reason, depth, deps = [], kind, explain, goalBefore, goalContext, opensScope, closesScope }) {
+          const step = {
+            id: `customStep${++stepCounter}`,
+            rule,
+            label,
+            formula,
+            reason,
+            depth,
+            deps: unique(deps),
+            kind,
+            explain,
+            goalBefore: goalBefore || targetText,
+            goalContext: goalContext || "Student-created practice problem",
+            opensScope,
+            closesScope
+          };
+          steps.push(step);
+          return step;
+        }
+
+        function findFormula(context, goal) {
+          return context.find(item => formulasEqual(item.ast, goal)) || null;
+        }
+
+        function addDerived(context, ast, step) {
+          const existing = findFormula(context, ast);
+          if (existing) return existing;
+          const item = { ast, label: null, stepId: step.id };
+          context.push(item);
+          collectFormulaTerms(ast, new Set(), allTerms);
+          return item;
+        }
+
+        function scopeDependencies(scopeOpenIds, ...items) {
+          return unique([...scopeOpenIds, ...items.map(item => item?.stepId)]);
+        }
+
+        function saturate(goal, context, depth, scopeOpenIds, goalContext) {
+          let changed = true;
+          let rounds = 0;
+          while (changed && rounds < 24) {
+            changed = false;
+            rounds += 1;
+            const snapshot = [...context];
+
+            for (const item of snapshot) {
+              if (item.ast.type === "forall" && selectedLevel >= 1) {
+                for (const term of [...allTerms]) {
+                  const instantiated = substituteFormula(item.ast.body, item.ast.variable, term);
+                  if (findFormula(context, instantiated)) continue;
+                  const step = addStep({
+                    rule: "ui",
+                    label: `Apply ${sourceText(item, () => "?")} to ${term}`,
+                    formula: formatFormula(instantiated),
+                    reason: refs => `UI from ${sourceText(item, refs)}, taking ${item.ast.variable} to ${term}`,
+                    depth,
+                    deps: scopeDependencies(scopeOpenIds, item),
+                    explain: `The universal statement applies when ${item.ast.variable} names ${term}.`,
+                    goalBefore: formatFormula(goal),
+                    goalContext
+                  });
+                  addDerived(context, instantiated, step);
+                  changed = true;
+                }
+              }
+
+              if (item.ast.type === "and" && selectedLevel >= 3) {
+                for (const part of [item.ast.left, item.ast.right]) {
+                  if (findFormula(context, part)) continue;
+                  const step = addStep({
+                    rule: "andE",
+                    label: `Take ${formatFormula(part)} from the conjunction`,
+                    formula: formatFormula(part),
+                    reason: refs => `And elimination from ${sourceText(item, refs)}`,
+                    depth,
+                    deps: scopeDependencies(scopeOpenIds, item),
+                    explain: "A conjunction makes each of its parts available.",
+                    goalBefore: formatFormula(goal),
+                    goalContext
+                  });
+                  addDerived(context, part, step);
+                  changed = true;
+                }
+              }
+
+              if (selectedLevel >= 5 && item.ast.type === "not" && item.ast.value.type === "not") {
+                const reduced = item.ast.value.value;
+                if (!findFormula(context, reduced)) {
+                  const step = addStep({
+                    rule: "dn",
+                    label: "Remove the double negation",
+                    formula: formatFormula(reduced),
+                    reason: refs => `Double negation from ${sourceText(item, refs)}`,
+                    depth,
+                    deps: scopeDependencies(scopeOpenIds, item),
+                    explain: "Two consecutive negations cancel in the classical logic used by this tool.",
+                    goalBefore: formatFormula(goal),
+                    goalContext
+                  });
+                  addDerived(context, reduced, step);
+                  changed = true;
+                }
+              }
+
+              if (selectedLevel >= 5) {
+                const transformed = deMorganTransform(item.ast);
+                if (transformed && !findFormula(context, transformed)) {
+                  const step = addStep({
+                    rule: "demorgan",
+                    label: "Apply De Morgan’s law",
+                    formula: formatFormula(transformed),
+                    reason: refs => `De Morgan’s law from ${sourceText(item, refs)}`,
+                    depth,
+                    deps: scopeDependencies(scopeOpenIds, item),
+                    explain: "Move the negation through the connective and switch and/or.",
+                    goalBefore: formatFormula(goal),
+                    goalContext
+                  });
+                  addDerived(context, transformed, step);
+                  changed = true;
+                }
+              }
+            }
+
+            const implications = context.filter(item => item.ast.type === "imp");
+            for (const implication of implications) {
+              const antecedent = findFormula(context, implication.ast.left);
+              if (!antecedent || findFormula(context, implication.ast.right)) continue;
+              const step = addStep({
+                rule: "detach",
+                label: `Detach to obtain ${formatFormula(implication.ast.right)}`,
+                formula: formatFormula(implication.ast.right),
+                reason: refs => `Detachment using ${sourceText(antecedent, refs)} and ${sourceText(implication, refs)}`,
+                depth,
+                deps: scopeDependencies(scopeOpenIds, antecedent, implication),
+                explain: "The if-part and the matching conditional establish the then-part.",
+                goalBefore: formatFormula(goal),
+                goalContext
+              });
+              addDerived(context, implication.ast.right, step);
+              changed = true;
+            }
+
+            const found = findFormula(context, goal);
+            if (found) return found;
+          }
+          return findFormula(context, goal);
+        }
+
+        function rollback(context, stepLength, contextLength) {
+          steps.length = stepLength;
+          context.length = contextLength;
+        }
+
+        function freshName(preferred = "Bob") {
+          return [preferred, "Bob", "Ari", "Alice", "Dana", "Kai"].find(name => !allTerms.has(name)) || `Object${allTerms.size + 1}`;
+        }
+
+        function prove(goal, context, depth, scopeOpenIds, goalContext) {
+          const signature = `${formatFormula(goal)}|${depth}|${context.map(item => formatFormula(item.ast)).sort().join(";")}`;
+          if (visiting.has(signature)) return null;
+          visiting.add(signature);
+          const originalStepLength = steps.length;
+          const originalContextLength = context.length;
+
+          const existing = findFormula(context, goal);
+          if (existing) {
+            visiting.delete(signature);
+            return existing;
+          }
+
+          const saturated = saturate(goal, context, depth, scopeOpenIds, goalContext);
+          if (saturated) {
+            visiting.delete(signature);
+            return saturated;
+          }
+
+          if (goal.type === "forall" && selectedLevel >= 1) {
+            const name = freshName("Bob");
+            allTerms.add(name);
+            const scopeKey = `ug-${stepCounter + 1}`;
+            const open = addStep({
+              rule: "ug",
+              label: `Pretend ${name} is an arbitrary object`,
+              formula: `Pretend ${name} is an arbitrary object.`,
+              reason: "Open an arbitrary-object world",
+              depth,
+              deps: scopeOpenIds,
+              kind: "opens world",
+              explain: `${name} is a fresh temporary name. Nothing in the proof may single it out.`,
+              goalBefore: formatFormula(goal),
+              goalContext,
+              opensScope: { key: scopeKey, label: `${name} is an arbitrary object` }
+            });
+            const body = substituteFormula(goal.body, goal.variable, name);
+            const innerContext = context.slice();
+            const result = prove(body, innerContext, depth + 1, [...scopeOpenIds, open.id], `Inside ${name}’s arbitrary-object world`);
+            if (result) {
+              const close = addStep({
+                rule: "ug",
+                label: `Pop out of ${name}’s arbitrary-object world`,
+                formula: `∴ ${formatFormula(goal)}`,
+                reason: refs => `UG using ${sourceText(result, refs)}`,
+                depth,
+                deps: scopeDependencies([open.id], result),
+                kind: "conclusion",
+                explain: `The result used nothing special about ${name}, so it holds for every object.`,
+                goalBefore: formatFormula(goal),
+                goalContext: `Ready to leave ${name}’s arbitrary-object world`,
+                closesScope: scopeKey
+              });
+              const item = addDerived(context, goal, close);
+              visiting.delete(signature);
+              return item;
+            }
+            allTerms.delete(name);
+            rollback(context, originalStepLength, originalContextLength);
+          }
+
+          if (goal.type === "imp" && selectedLevel >= 1) {
+            const scopeKey = `mb-${stepCounter + 1}`;
+            const open = addStep({
+              rule: "mb",
+              label: `Make believe ${formatFormula(goal.left)}`,
+              formula: `Make believe ${formatFormula(goal.left)}`,
+              reason: "Make believe",
+              depth,
+              deps: scopeOpenIds,
+              kind: "opens world",
+              explain: "The goal is conditional, so temporarily assume its if-part.",
+              goalBefore: formatFormula(goal),
+              goalContext,
+              opensScope: { key: scopeKey, label: `Make believe ${formatFormula(goal.left)}` }
+            });
+            const innerContext = context.slice();
+            innerContext.push({ ast: goal.left, label: null, stepId: open.id });
+            const result = prove(goal.right, innerContext, depth + 1, [...scopeOpenIds, open.id], `Inside the make-believe world ${formatFormula(goal.left)}`);
+            if (result) {
+              const close = addStep({
+                rule: "mb",
+                label: "Pop out of the make-believe world",
+                formula: `∴ ${formatFormula(goal)}`,
+                reason: refs => `Make-believe using ${sourceText(result, refs)}`,
+                depth,
+                deps: scopeDependencies([open.id], result),
+                kind: "conclusion",
+                explain: "The then-part followed from pretending the if-part, so the conditional holds.",
+                goalBefore: formatFormula(goal),
+                goalContext: "Ready to leave the make-believe world",
+                closesScope: scopeKey
+              });
+              const item = addDerived(context, goal, close);
+              visiting.delete(signature);
+              return item;
+            }
+            rollback(context, originalStepLength, originalContextLength);
+          }
+
+          if (goal.type === "and" && selectedLevel >= 3) {
+            const leftResult = prove(goal.left, context, depth, scopeOpenIds, `First establish the left part of ${formatFormula(goal)}`);
+            const rightResult = leftResult && prove(goal.right, context, depth, scopeOpenIds, `Now establish the right part of ${formatFormula(goal)}`);
+            if (leftResult && rightResult) {
+              const step = addStep({
+                rule: "andI",
+                label: "Join the two established parts",
+                formula: `∴ ${formatFormula(goal)}`,
+                reason: refs => `And introduction using ${sourceText(leftResult, refs)} and ${sourceText(rightResult, refs)}`,
+                depth,
+                deps: scopeDependencies(scopeOpenIds, leftResult, rightResult),
+                kind: "conclusion",
+                explain: "Both parts of the conjunction have been established.",
+                goalBefore: formatFormula(goal),
+                goalContext
+              });
+              const item = addDerived(context, goal, step);
+              visiting.delete(signature);
+              return item;
+            }
+            rollback(context, originalStepLength, originalContextLength);
+          }
+
+          if (goal.type === "or" && selectedLevel >= 4) {
+            for (const side of [goal.left, goal.right]) {
+              const branchStepLength = steps.length;
+              const branchContextLength = context.length;
+              const result = prove(side, context, depth, scopeOpenIds, `Establish either side of ${formatFormula(goal)}`);
+              if (result) {
+                const step = addStep({
+                  rule: "orI",
+                  label: "Use the established side to build the or-statement",
+                  formula: `∴ ${formatFormula(goal)}`,
+                  reason: refs => `Or introduction from ${sourceText(result, refs)}`,
+                  depth,
+                  deps: scopeDependencies(scopeOpenIds, result),
+                  kind: "conclusion",
+                  explain: "An or-statement is true when at least one side is true.",
+                  goalBefore: formatFormula(goal),
+                  goalContext
+                });
+                const item = addDerived(context, goal, step);
+                visiting.delete(signature);
+                return item;
+              }
+              rollback(context, branchStepLength, branchContextLength);
+            }
+          }
+
+          if (goal.type === "exists" && selectedLevel >= 2) {
+            for (const term of [...allTerms]) {
+              const branchStepLength = steps.length;
+              const branchContextLength = context.length;
+              const example = substituteFormula(goal.body, goal.variable, term);
+              const result = prove(example, context, depth, scopeOpenIds, `Find one object that satisfies ${formatFormula(goal.body)}`);
+              if (result) {
+                const step = addStep({
+                  rule: "eg",
+                  label: `Use ${term} as the example`,
+                  formula: `∴ ${formatFormula(goal)}`,
+                  reason: refs => `Existential generalization from ${sourceText(result, refs)}`,
+                  depth,
+                  deps: scopeDependencies(scopeOpenIds, result),
+                  kind: "conclusion",
+                  explain: `${term} supplies one object with the required property.`,
+                  goalBefore: formatFormula(goal),
+                  goalContext
+                });
+                const item = addDerived(context, goal, step);
+                visiting.delete(signature);
+                return item;
+              }
+              rollback(context, branchStepLength, branchContextLength);
+            }
+          }
+
+          if (goal.type === "not" && goal.value.type === "not" && selectedLevel >= 5) {
+            const result = prove(goal.value.value, context, depth, scopeOpenIds, `Establish ${formatFormula(goal.value.value)} before introducing double negation`);
+            if (result) {
+              const step = addStep({
+                rule: "dn",
+                label: "Introduce the double negation",
+                formula: `∴ ${formatFormula(goal)}`,
+                reason: refs => `Double negation from ${sourceText(result, refs)}`,
+                depth,
+                deps: scopeDependencies(scopeOpenIds, result),
+                kind: "conclusion",
+                explain: "A statement is equivalent to its double negation in the classical logic used here.",
+                goalBefore: formatFormula(goal),
+                goalContext
+              });
+              const item = addDerived(context, goal, step);
+              visiting.delete(signature);
+              return item;
+            }
+            rollback(context, originalStepLength, originalContextLength);
+          }
+
+          if (selectedLevel >= 5) {
+            const inverse = deMorganTransform(goal);
+            const source = inverse && findFormula(context, inverse);
+            if (source) {
+              const step = addStep({
+                rule: "demorgan",
+                label: "Apply De Morgan’s law",
+                formula: `∴ ${formatFormula(goal)}`,
+                reason: refs => `De Morgan’s law from ${sourceText(source, refs)}`,
+                depth,
+                deps: scopeDependencies(scopeOpenIds, source),
+                kind: "conclusion",
+                explain: "Move the negation through the connective and switch and/or.",
+                goalBefore: formatFormula(goal),
+                goalContext
+              });
+              const item = addDerived(context, goal, step);
+              visiting.delete(signature);
+              return item;
+            }
+          }
+
+          if (selectedLevel >= 4) {
+            const disjunctions = context.filter(item => item.ast.type === "or");
+            for (const source of disjunctions) {
+              const sourceKey = `${formatFormula(source.ast)}|${source.label || source.stepId}`;
+              if (usedCaseSources.has(sourceKey)) continue;
+              const branchStepLength = steps.length;
+              const branchContextLength = context.length;
+              usedCaseSources.add(sourceKey);
+
+              const leftScopeKey = `case-left-${stepCounter + 1}`;
+              const leftOpen = addStep({
+                rule: "cases",
+                label: `Case 1: make believe ${formatFormula(source.ast.left)}`,
+                formula: `Case 1: ${formatFormula(source.ast.left)}`,
+                reason: refs => `First case from ${sourceText(source, refs)}`,
+                depth,
+                deps: scopeDependencies(scopeOpenIds, source),
+                kind: "opens case",
+                explain: "The first branch assumes the left side of the disjunction.",
+                goalBefore: formatFormula(goal),
+                goalContext,
+                opensScope: { key: leftScopeKey, label: `Case 1: make believe ${formatFormula(source.ast.left)}` }
+              });
+              const leftContext = context.slice();
+              leftContext.push({ ast: source.ast.left, label: null, stepId: leftOpen.id });
+              const leftResult = prove(goal, leftContext, depth + 1, [...scopeOpenIds, leftOpen.id], `Case 1: make believe ${formatFormula(source.ast.left)}`);
+              if (!leftResult) {
+                usedCaseSources.delete(sourceKey);
+                rollback(context, branchStepLength, branchContextLength);
+                continue;
+              }
+              const leftClose = addStep({
+                rule: "cases",
+                label: "Close Case 1",
+                formula: `End Case 1: ${formatFormula(goal)}`,
+                reason: refs => `Case 1 established by ${sourceText(leftResult, refs)}`,
+                depth,
+                deps: scopeDependencies([leftOpen.id], leftResult),
+                kind: "closes case",
+                explain: "The first possible road reaches the common goal.",
+                goalBefore: formatFormula(goal),
+                goalContext: "Case 1 has reached the goal",
+                closesScope: leftScopeKey
+              });
+
+              const rightScopeKey = `case-right-${stepCounter + 1}`;
+              const rightOpen = addStep({
+                rule: "cases",
+                label: `Case 2: make believe ${formatFormula(source.ast.right)}`,
+                formula: `Case 2: ${formatFormula(source.ast.right)}`,
+                reason: refs => `Second case from ${sourceText(source, refs)}`,
+                depth,
+                deps: unique([...scopeDependencies(scopeOpenIds, source), leftClose.id]),
+                kind: "opens case",
+                explain: "The second branch assumes the right side of the disjunction.",
+                goalBefore: formatFormula(goal),
+                goalContext,
+                opensScope: { key: rightScopeKey, label: `Case 2: make believe ${formatFormula(source.ast.right)}` }
+              });
+              const rightContext = context.slice();
+              rightContext.push({ ast: source.ast.right, label: null, stepId: rightOpen.id });
+              const rightResult = prove(goal, rightContext, depth + 1, [...scopeOpenIds, rightOpen.id], `Case 2: make believe ${formatFormula(source.ast.right)}`);
+              if (!rightResult) {
+                usedCaseSources.delete(sourceKey);
+                rollback(context, branchStepLength, branchContextLength);
+                continue;
+              }
+              const rightClose = addStep({
+                rule: "cases",
+                label: "Close Case 2",
+                formula: `End Case 2: ${formatFormula(goal)}`,
+                reason: refs => `Case 2 established by ${sourceText(rightResult, refs)}`,
+                depth,
+                deps: scopeDependencies([rightOpen.id], rightResult),
+                kind: "closes case",
+                explain: "The second possible road reaches the same goal.",
+                goalBefore: formatFormula(goal),
+                goalContext: "Case 2 has reached the goal",
+                closesScope: rightScopeKey
+              });
+              const close = addStep({
+                rule: "cases",
+                label: "Conclude the shared result by proof by cases",
+                formula: `∴ ${formatFormula(goal)}`,
+                reason: refs => `Proof by cases using ${sourceText(source, refs)}, line ${refs(leftClose.id)}, and line ${refs(rightClose.id)}`,
+                depth,
+                deps: scopeDependencies(scopeOpenIds, source, { stepId: leftClose.id }, { stepId: rightClose.id }),
+                kind: "conclusion",
+                explain: "The disjunction covers both possibilities, and both reach the goal.",
+                goalBefore: formatFormula(goal),
+                goalContext
+              });
+              const item = addDerived(context, goal, close);
+              usedCaseSources.delete(sourceKey);
+              visiting.delete(signature);
+              return item;
+            }
+          }
+
+          if (selectedLevel >= 2) {
+            const existentialSources = context.filter(item => item.ast.type === "exists");
+            for (const source of existentialSources) {
+              const sourceKey = `${formatFormula(source.ast)}|${source.label || source.stepId}`;
+              if (usedExistentialSources.has(sourceKey)) continue;
+              const branchStepLength = steps.length;
+              const branchContextLength = context.length;
+              const name = freshName("Ari");
+              allTerms.add(name);
+              usedExistentialSources.add(sourceKey);
+              const witness = substituteFormula(source.ast.body, source.ast.variable, name);
+              const scopeKey = `ei-${stepCounter + 1}`;
+              const open = addStep({
+                rule: "ei",
+                label: `Give the witness the fresh name ${name}`,
+                formula: formatFormula(witness),
+                reason: refs => `EI from ${sourceText(source, refs)}; ${name} is fresh`,
+                depth,
+                deps: scopeDependencies(scopeOpenIds, source),
+                kind: "opens world",
+                explain: `${name} temporarily names whichever object makes the existential statement true.`,
+                goalBefore: formatFormula(goal),
+                goalContext,
+                opensScope: { key: scopeKey, label: `${name} is a temporary existential witness` }
+              });
+              const innerContext = context.slice();
+              innerContext.push({ ast: witness, label: null, stepId: open.id });
+              const result = prove(goal, innerContext, depth + 1, [...scopeOpenIds, open.id], `Inside ${name}’s temporary-witness world`);
+              if (result && !formulaContainsTerm(goal, name)) {
+                const close = addStep({
+                  rule: "ei",
+                  label: "Pop out of the temporary-witness world",
+                  formula: `∴ ${formatFormula(goal)}`,
+                  reason: refs => `EI using ${sourceText(source, refs)} and ${sourceText(result, refs)}`,
+                  depth,
+                  deps: scopeDependencies([open.id], result),
+                  kind: "conclusion",
+                  explain: `The conclusion no longer depends on the temporary name ${name}.`,
+                  goalBefore: formatFormula(goal),
+                  goalContext: "Ready to leave the temporary-witness world",
+                  closesScope: scopeKey
+                });
+                const item = addDerived(context, goal, close);
+                visiting.delete(signature);
+                return item;
+              }
+              usedExistentialSources.delete(sourceKey);
+              allTerms.delete(name);
+              rollback(context, branchStepLength, branchContextLength);
+            }
+          }
+
+          rollback(context, originalStepLength, originalContextLength);
+          visiting.delete(signature);
+          return null;
+        }
+
+        const rootContext = parsedAxioms.map(item => ({ ...item }));
+        const result = prove(targetAst, rootContext, 0, [], "Student-created practice problem");
+        if (!result || !result.stepId) {
+          if (result && !result.stepId) throw new Error("The goal is already one of the given statements, so this problem does not require a proof move.");
+          throw new Error("I could not build a guided proof with the moves currently enabled. This does not mean that no proof exists; try adding a needed move or simplifying the problem.");
+        }
+
+        const byId = new Map(steps.map(step => [step.id, step]));
+        const requiredIds = new Set();
+        function requireStep(stepId) {
+          if (!stepId || requiredIds.has(stepId)) return;
+          requiredIds.add(stepId);
+          const step = byId.get(stepId);
+          (step?.deps || []).forEach(requireStep);
+        }
+        requireStep(result.stepId);
+        const proofSteps = steps.filter(step => requiredIds.has(step.id));
+        proofSteps.forEach(step => { step.deps = step.deps.filter(dep => requiredIds.has(dep)); });
+
+        return {
+          id: "custom-practice",
+          custom: true,
+          level: Math.max(1, ...proofSteps.map(step => ruleLevelById[step.rule] || 1)),
+          title: spec.title.trim() || "My practice proof",
+          kicker: "Student-created problem",
+          intro: "This problem was built from your given statements and goal. The tool generated moves that may be taken in any dependency-respecting order.",
+          key: spec.key.trim() || "Use the predicate meanings you intended when you wrote the formulas.",
+          axioms: parsedAxioms.map(item => ({ label: item.label, formula: formatFormula(item.ast) })),
+          target: targetText,
+          steps: proofSteps,
+          goal(done) {
+            if (this.steps.every(step => done.has(step.id))) return ["Proof complete", "Every goal has been established"];
+            const offered = this.steps.find(step => !done.has(step.id) && (step.deps || []).every(dep => done.has(dep)));
+            return [offered?.goalBefore || this.target, offered?.goalContext || "Student-created practice problem"];
+          },
+          worlds(done) {
+            const open = [];
+            this.steps.forEach(step => {
+              if (step.opensScope && done.has(step.id)) open.push(step.opensScope);
+              if (step.closesScope && done.has(step.id)) {
+                const index = open.findIndex(scope => scope.key === step.closesScope);
+                if (index >= 0) open.splice(index, 1);
+              }
+            });
+            return open.map(scope => scope.label);
+          }
+        };
+      }
+
+      function refs(stepId) {
+        const index = currentOrder().indexOf(stepId);
+        return index >= 0 ? String(index + 1) : "?";
+      }
+
+      function reasonFor(step) {
+        return typeof step.reason === "function" ? step.reason(refs) : step.reason;
+      }
+
+      function availableSteps() {
+        const ex = currentExercise();
+        const done = currentDone();
+        return ex.steps.filter(step => {
+          if (done.has(step.id)) return false;
+          return (step.deps || []).every(dep => done.has(dep));
+        });
+      }
+
+      function isComplete() {
+        const ex = currentExercise();
+        return ex.steps.every(step => currentDone().has(step.id));
+      }
+
+      function announce(message) {
+        els.announcer.textContent = "";
+        window.setTimeout(() => { els.announcer.textContent = message; }, 20);
+      }
+
+      function renderLessonSelect() {
+        els.lessonSelect.replaceChildren();
+        const available = availableExercises();
+        available.forEach((ex, visibleIndex) => {
+          const index = exercises.findIndex(candidate => candidate.id === ex.id);
+          const option = document.createElement("option");
+          const completed = state.completedExercises.has(ex.id) ? " ✓" : "";
+          option.value = String(index);
+          option.textContent = `${visibleIndex + 1}. ${ex.title}${completed}`;
+          els.lessonSelect.append(option);
+        });
+        if (state.customExercise) {
+          const option = document.createElement("option");
+          option.value = "custom";
+          option.textContent = `${state.customExercise.title} · created by me${state.completedExercises.has(state.customExercise.id) ? " ✓" : ""}`;
+          els.lessonSelect.append(option);
+        }
+        els.lessonSelect.value = state.customMode ? "custom" : String(state.exerciseIndex);
+      }
+
+      function renderProblem() {
+        const ex = currentExercise();
+        const available = availableExercises();
+        const position = available.findIndex(candidate => candidate.id === ex.id);
+        els.lessonKicker.textContent = ex.custom
+          ? "Student-created practice problem"
+          : `Practice ${position + 1} of ${available.length} · ${ex.kicker.replace(/^Proof\s+\d+\s+·\s+/, "")}`;
+        els.problemHeading.textContent = ex.title;
+        els.problemIntro.textContent = ex.intro;
+        els.predicateKey.replaceChildren();
+        const keyLabel = document.createElement("strong");
+        keyLabel.textContent = ex.id === "negation" ? "Statement key: " : "Predicate key: ";
+        els.predicateKey.append(keyLabel, document.createTextNode(ex.key));
+        els.targetFormula.textContent = ex.target;
+        els.targetFormula.setAttribute("aria-label", speakFormula(ex.target));
+        els.axiomList.replaceChildren();
+        ex.axioms.forEach(axiom => {
+          const li = document.createElement("li");
+          li.className = "axiom";
+          const label = document.createElement("span");
+          label.className = "axiom-name";
+          label.textContent = axiom.label;
+          li.append(label, formulaNode(axiom.formula));
+          els.axiomList.append(li);
+        });
+        renderWorlds();
+      }
+
+      function renderWorlds() {
+        const worlds = currentExercise().worlds(currentDone());
+        els.worldStack.replaceChildren();
+        if (worlds.length === 0) {
+          const p = document.createElement("p");
+          p.className = "empty-worlds";
+          p.textContent = "None. You are in the original world.";
+          els.worldStack.append(p);
+          return;
+        }
+        worlds.forEach(world => {
+          const div = document.createElement("div");
+          div.className = "world-chip";
+          div.textContent = world;
+          els.worldStack.append(div);
+        });
+      }
+
+      function renderProgress() {
+        const available = availableExercises();
+        const completeCount = available.filter(ex => state.completedExercises.has(ex.id)).length;
+        els.progressText.textContent = `${completeCount} of ${available.length} available complete`;
+        els.progressFill.style.width = `${(completeCount / available.length) * 100}%`;
+        els.progressTrack.setAttribute("aria-valuemax", String(available.length));
+        els.progressTrack.setAttribute("aria-valuenow", String(completeCount));
+        els.progressTrack.setAttribute("aria-valuetext", `${completeCount} of ${available.length} available proofs complete`);
+        const moves = currentOrder().length;
+        els.moveCount.textContent = `${moves} ${moves === 1 ? "move" : "moves"}`;
+      }
+
+      function renderGoal() {
+        const [goal, context] = currentExercise().goal(currentDone());
+        els.currentGoal.textContent = goal;
+        els.currentGoal.setAttribute("aria-label", speakFormula(goal));
+        els.goalContext.textContent = context;
+        els.goalBanner.style.borderColor = isComplete() ? "#58a37b" : "#d79b3f";
+        els.goalBanner.style.background = isComplete() ? "#eaf8f0" : "#fff8e9";
+        const popOutStep = availableSteps().find(step => /^Pop out\b/i.test(step.label));
+        els.popOutButton.hidden = !popOutStep || isComplete();
+        els.popOutButton.dataset.step = popOutStep?.id || "";
+        if (popOutStep) {
+          els.popOutButton.textContent = "Goal met — pop out";
+          els.popOutButton.setAttribute("aria-label", `Goal met. ${popOutStep.label}.`);
+        } else {
+          els.popOutButton.removeAttribute("aria-label");
+        }
+      }
+
+      function renderProof() {
+        const ex = currentExercise();
+        const order = currentOrder();
+        els.proofSheet.replaceChildren();
+        els.proofSheet.classList.toggle("show-notes", state.notesVisible);
+
+        if (order.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "proof-empty";
+          empty.innerHTML = "<strong>No proof lines yet.</strong>Start from the goal: which proof move matches its outermost structure?";
+          els.proofSheet.append(empty);
+        } else {
+          order.forEach((stepId, index) => {
+            const step = ex.steps.find(candidate => candidate.id === stepId);
+            if (!step) return;
+            const row = document.createElement("div");
+            row.className = "proof-line";
+            row.setAttribute("role", "listitem");
+            row.id = `proof-line-${index + 1}`;
+            row.tabIndex = -1;
+            const scopeNames = ex.worlds(new Set(order.slice(0, index + 1)));
+            const scopeText = scopeNames.length ? ` Active worlds: ${scopeNames.join("; ")}.` : " In the original world.";
+            row.setAttribute("aria-label", `Line ${index + 1}. ${speakFormula(step.formula)}. Reason: ${reasonFor(step)}.${scopeText}`);
+
+            const number = document.createElement("div");
+            number.className = "line-number";
+            number.textContent = `${index + 1}.`;
+            number.setAttribute("aria-hidden", "true");
+
+            const statement = document.createElement("div");
+            statement.className = "line-statement";
+            const rails = document.createElement("span");
+            rails.className = "scope-rails";
+            rails.setAttribute("aria-hidden", "true");
+            for (let railIndex = 0; railIndex < step.depth; railIndex += 1) {
+              const rail = document.createElement("span");
+              rail.className = "scope-rail";
+              rails.append(rail);
+            }
+            const formulaWrap = document.createElement("div");
+            formulaWrap.className = "line-formula";
+            formulaWrap.append(formulaNode(step.formula));
+            if (step.kind) {
+              const kind = document.createElement("span");
+              kind.className = "line-kind";
+              kind.textContent = step.kind;
+              formulaWrap.append(document.createElement("br"), kind);
+            }
+            statement.append(rails, formulaWrap);
+
+            const reason = document.createElement("div");
+            reason.className = "line-reason";
+            reason.textContent = reasonFor(step);
+            if (step.explain) {
+              const explanation = document.createElement("div");
+              explanation.className = "line-explanation";
+              explanation.textContent = step.explain;
+              reason.append(explanation);
+            }
+            row.append(number, statement, reason);
+            els.proofSheet.append(row);
+          });
+        }
+
+        els.undoButton.disabled = order.length === 0;
+        renderCompletion();
+      }
+
+      function renderCompletion() {
+        els.completionRegion.replaceChildren();
+        if (!isComplete()) return;
+        const card = document.createElement("div");
+        card.className = "completion-card";
+        const heading = document.createElement("h3");
+        heading.textContent = "Proof complete";
+        const copy = document.createElement("p");
+        copy.textContent = "Every goal was established, and every pretend world was closed.";
+        card.append(heading, copy);
+        const available = availableExercises();
+        const availablePosition = available.findIndex(exercise => exercise.id === currentExercise().id);
+        const nextExercise = available[availablePosition + 1];
+        if (!state.customMode && nextExercise) {
+          const next = document.createElement("button");
+          next.className = "primary-button";
+          next.type = "button";
+          next.textContent = "Continue to the next proof";
+          next.addEventListener("click", () => selectExercise(exercises.findIndex(exercise => exercise.id === nextExercise.id)));
+          card.append(next);
+        }
+        els.completionRegion.append(card);
+      }
+
+      function renderRules() {
+        els.ruleGroups.replaceChildren();
+        ruleGroups.forEach(group => {
+          const visibleRules = group.rules.filter(ruleId => ruleLevelById[ruleId] <= state.ruleLevel);
+          if (visibleRules.length === 0) return;
+          const section = document.createElement("section");
+          section.className = "rule-group";
+          const heading = document.createElement("h3");
+          heading.textContent = group.title;
+          const grid = document.createElement("div");
+          grid.className = "rule-grid";
+          visibleRules.forEach(ruleId => {
+            const rule = rules[ruleId];
+            const button = document.createElement("button");
+            button.className = "rule-button";
+            button.type = "button";
+            button.dataset.rule = ruleId;
+            button.setAttribute("aria-pressed", String(state.selectedRule === ruleId));
+            button.setAttribute("aria-label", `${rule.name}, ${rule.abbr}`);
+            button.setAttribute("aria-controls", "application-panel");
+            const abbr = document.createElement("span");
+            abbr.className = "rule-abbr";
+            abbr.textContent = rule.abbr;
+            abbr.setAttribute("aria-hidden", "true");
+            const name = document.createElement("span");
+            name.className = "rule-name";
+            name.textContent = rule.name;
+            button.append(abbr, name);
+            button.addEventListener("click", () => selectRule(ruleId));
+            grid.append(button);
+          });
+          section.append(heading, grid);
+          els.ruleGroups.append(section);
+        });
+      }
+
+      function selectRule(ruleId) {
+        state.selectedRule = ruleId;
+        state.hintedStep = null;
+        renderRules();
+        renderApplications();
+        els.ruleHelp.textContent = rules[ruleId].help;
+        const firstApplication = els.applicationPanel.querySelector(".application-button");
+        if (firstApplication) firstApplication.focus();
+        const offeredCount = els.applicationPanel.querySelectorAll(".application-button").length;
+        announce(`${rules[ruleId].name}. ${offeredCount} ${offeredCount === 1 ? "move is" : "moves are"} offered in the Apply area.`);
+      }
+
+      function renderApplications() {
+        els.applicationPanel.replaceChildren();
+        const heading = document.createElement("h3");
+        const intro = document.createElement("p");
+        intro.className = "application-intro";
+        const [goal] = currentExercise().goal(currentDone());
+        const goalBox = document.createElement("div");
+        goalBox.className = "application-goal";
+        goalBox.append(document.createTextNode("Current goal"), formulaNode(goal));
+        if (!state.selectedRule) {
+          heading.textContent = "Apply a move";
+          intro.textContent = "Select a proof move below. Then choose one of the moves offered here.";
+          els.applicationPanel.append(heading, goalBox, intro);
+          return;
+        }
+
+        const rule = rules[state.selectedRule];
+        heading.textContent = rule.name;
+        intro.textContent = "Moves offered at this point in this guided proof:";
+        els.applicationPanel.append(heading, goalBox, intro);
+
+        const candidates = availableSteps().filter(step => step.rule === state.selectedRule);
+        if (candidates.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "no-application";
+          empty.textContent = isComplete()
+            ? "The proof is already complete."
+            : "This move cannot be applied yet. Check the current goal and the facts available in the open worlds.";
+          els.applicationPanel.append(empty);
+          return;
+        }
+
+        const list = document.createElement("div");
+        list.className = "application-list";
+        candidates.forEach(step => {
+          const button = document.createElement("button");
+          button.className = "application-button";
+          button.type = "button";
+          button.dataset.step = step.id;
+          const action = document.createElement("strong");
+          action.textContent = step.label;
+          button.append(action, formulaNode(step.formula));
+          button.addEventListener("click", () => applyStep(step.id));
+          list.append(button);
+        });
+        els.applicationPanel.append(list);
+      }
+
+      function applyStep(stepId) {
+        const step = currentExercise().steps.find(candidate => candidate.id === stepId);
+        if (!step || !availableSteps().some(candidate => candidate.id === stepId)) {
+          throw new Error("That proof move is not currently available.");
+        }
+        currentDone().add(stepId);
+        currentOrder().push(stepId);
+        state.selectedRule = null;
+        state.hintedStep = null;
+        if (isComplete()) state.completedExercises.add(currentExercise().id);
+        saveState();
+        renderAll();
+        const lineNumber = currentOrder().length;
+        const newLine = document.getElementById(`proof-line-${lineNumber}`);
+        if (newLine) newLine.focus({ preventScroll: true });
+        announce(`Line ${lineNumber} added: ${speakFormula(step.formula)}. ${isComplete() ? "Proof complete." : "The goal state has changed."}`);
+        return { exerciseId: currentExercise().id, stepId, lineNumber, complete: isComplete() };
+      }
+
+      function undoStep() {
+        const order = currentOrder();
+        const last = order.pop();
+        if (!last) return;
+        currentDone().delete(last);
+        state.completedExercises.delete(currentExercise().id);
+        state.selectedRule = null;
+        saveState();
+        renderAll();
+        announce("The last proof line was removed.");
+      }
+
+      function resetExercise(ask = true) {
+        if (ask && currentOrder().length > 0 && !window.confirm("Clear every proof line for this exercise?")) return false;
+        const id = currentExercise().id;
+        state.completedByExercise[id] = new Set();
+        state.proofOrderByExercise[id] = [];
+        state.completedExercises.delete(id);
+        state.selectedRule = null;
+        state.hintedStep = null;
+        saveState();
+        renderAll();
+        announce("The current proof was reset.");
+        return true;
+      }
+
+      function giveHint() {
+        const next = availableSteps()[0];
+        if (!next) {
+          announce("This proof is already complete.");
+          return;
+        }
+        state.hintedStep = next.id;
+        state.selectedRule = next.rule;
+        renderRules();
+        renderApplications();
+        els.ruleHelp.textContent = `${rules[next.rule].help} Suggested next move: ${next.label}.`;
+        els.ruleReference.open = true;
+        const application = els.applicationPanel.querySelector(`[data-step="${next.id}"]`);
+        if (application) application.focus();
+        announce(`Hint: consider ${rules[next.rule].name}.`);
+      }
+
+      function selectExercise(index) {
+        const numeric = Number(index);
+        if (!Number.isInteger(numeric) || numeric < 0 || numeric >= exercises.length) return;
+        if (exercises[numeric].level > state.ruleLevel) return;
+        state.customMode = false;
+        state.exerciseIndex = numeric;
+        state.selectedRule = null;
+        state.hintedStep = null;
+        saveState();
+        renderAll();
+        document.getElementById("problem-heading").focus?.();
+        announce(`Opened proof ${numeric + 1}: ${currentExercise().title}.`);
+      }
+
+      function selectCustomExercise() {
+        if (!state.customExercise) return;
+        state.customMode = true;
+        state.selectedRule = null;
+        saveState();
+        renderAll();
+        els.problemHeading.focus();
+        announce(`Opened your practice problem: ${state.customExercise.title}.`);
+      }
+
+      function renumberAxiomEditors() {
+        const rows = [...els.axiomEditorList.querySelectorAll(".axiom-editor-row")];
+        rows.forEach((row, index) => {
+          const number = index + 1;
+          const label = row.querySelector("label");
+          const input = row.querySelector(".formula-input");
+          const remove = row.querySelector(".remove-axiom");
+          input.id = `custom-axiom-${number}`;
+          label.htmlFor = input.id;
+          label.textContent = `Given ${number}`;
+          remove.setAttribute("aria-label", `Remove given statement ${number}`);
+          remove.disabled = rows.length === 1;
+        });
+      }
+
+      function addAxiomEditorRow(value = "") {
+        if (els.axiomEditorList.children.length >= 8) return;
+        const row = document.createElement("div");
+        row.className = "axiom-editor-row";
+        const label = document.createElement("label");
+        const input = document.createElement("textarea");
+        input.className = "formula-input";
+        input.rows = 2;
+        input.spellcheck = false;
+        input.autocomplete = "off";
+        input.value = value;
+        const remove = document.createElement("button");
+        remove.className = "remove-axiom";
+        remove.type = "button";
+        remove.textContent = "×";
+        remove.addEventListener("click", () => {
+          row.remove();
+          renumberAxiomEditors();
+          updateComposerPreview();
+        });
+        row.append(label, input, remove);
+        els.axiomEditorList.append(row);
+        renumberAxiomEditors();
+        input.addEventListener("input", updateComposerPreview);
+        input.addEventListener("focus", () => { state.activeFormulaInput = input; });
+        return input;
+      }
+
+      function composerFormulaInputs() {
+        return [...els.axiomEditorList.querySelectorAll(".formula-input"), els.customGoal];
+      }
+
+      function updateComposerPreview() {
+        els.customPreview.replaceChildren();
+        els.composerStatus.textContent = "";
+        const inputs = composerFormulaInputs();
+        const labels = inputs.map((input, index) => index < inputs.length - 1 ? `Given ${index + 1}` : "Goal");
+        let firstInvalid = null;
+        inputs.forEach((input, index) => {
+          const item = document.createElement("li");
+          if (!input.value.trim()) {
+            item.textContent = `${labels[index]}: enter a formula`;
+            input.setAttribute("aria-invalid", "true");
+            firstInvalid ||= input;
+          } else {
+            try {
+              const parsed = parseFormula(input.value);
+              const formatted = formatFormula(parsed);
+              item.append(document.createTextNode(`${labels[index]}: `), formulaNode(formatted));
+              input.setAttribute("aria-invalid", "false");
+              input.removeAttribute("aria-describedby");
+            } catch (error) {
+              item.textContent = `${labels[index]}: ${error.message}`;
+              input.setAttribute("aria-invalid", "true");
+              input.setAttribute("aria-describedby", "composer-status");
+              firstInvalid ||= input;
+            }
+          }
+          els.customPreview.append(item);
+        });
+        els.customToolkitNote.textContent = `Selected toolkit: ${els.ruleLevelSelect.options[state.ruleLevel - 1].text}. You may write any connective as part of a statement; the selected proof moves determine which structures the tool can build or take apart.`;
+        return firstInvalid;
+      }
+
+      function openComposer() {
+        const spec = state.customProblemSpec || {
+          title: "My practice proof",
+          axioms: ["(∀ c)(S(c) → M(c))", "S(Scrat)"],
+          goal: "M(Scrat)",
+          key: "S(c): c is a squirrel · M(c): c is a mammal"
+        };
+        els.customTitle.value = spec.title;
+        els.customKey.value = spec.key;
+        els.customGoal.value = spec.goal;
+        els.axiomEditorList.replaceChildren();
+        spec.axioms.forEach(formula => addAxiomEditorRow(formula));
+        state.activeFormulaInput = els.axiomEditorList.querySelector(".formula-input") || els.customGoal;
+        updateComposerPreview();
+        els.problemComposer.showModal();
+        els.customTitle.focus();
+      }
+
+      function closeComposer() {
+        els.problemComposer.close();
+        els.customProblemButton.focus();
+      }
+
+      function insertComposerSymbol(button) {
+        const input = state.activeFormulaInput && state.activeFormulaInput.isConnected
+          ? state.activeFormulaInput
+          : els.customGoal;
+        const insertion = button.dataset.insert || "";
+        const start = input.selectionStart ?? input.value.length;
+        const end = input.selectionEnd ?? start;
+        input.setRangeText(insertion, start, end, "end");
+        const back = Number(button.dataset.back || 0);
+        const caret = Math.max(0, (input.selectionStart ?? input.value.length) - back);
+        input.focus();
+        input.setSelectionRange(caret, caret);
+        updateComposerPreview();
+      }
+
+      function submitComposer(event) {
+        event.preventDefault();
+        const firstInvalid = updateComposerPreview();
+        if (firstInvalid) {
+          els.composerStatus.textContent = "Correct the formula marked above before building the practice proof.";
+          firstInvalid.focus();
+          return;
+        }
+        const spec = {
+          title: els.customTitle.value.trim() || "My practice proof",
+          axioms: [...els.axiomEditorList.querySelectorAll(".formula-input")].map(input => input.value.trim()),
+          goal: els.customGoal.value.trim(),
+          key: els.customKey.value.trim()
+        };
+        try {
+          const exercise = buildCustomExercise(spec, state.ruleLevel);
+          state.customProblemSpec = spec;
+          state.customExercise = exercise;
+          state.customMode = true;
+          state.completedByExercise[exercise.id] = new Set();
+          state.proofOrderByExercise[exercise.id] = [];
+          state.completedExercises.delete(exercise.id);
+          state.selectedRule = null;
+          saveState();
+          els.problemComposer.close();
+          renderAll();
+          els.problemHeading.focus();
+          announce(`Created ${exercise.title}. The first goal is ${exercise.target}.`);
+        } catch (error) {
+          els.composerStatus.textContent = error.message;
+        }
+      }
+
+      function renderAll() {
+        renderLessonSelect();
+        renderProblem();
+        renderProgress();
+        renderGoal();
+        renderProof();
+        renderRules();
+        renderApplications();
+        els.notesToggle.checked = state.notesVisible;
+        els.ruleLevelSelect.value = String(state.ruleLevel);
+        els.levelDescription.textContent = levelDescriptions[state.ruleLevel];
+        if (!state.selectedRule) els.ruleHelp.textContent = "Select a proof move to see a short reminder.";
+      }
+
+      function initEvents() {
+        els.lessonSelect.addEventListener("change", event => {
+          if (event.target.value === "custom") selectCustomExercise();
+          else selectExercise(event.target.value);
+        });
+        els.ruleLevelSelect.addEventListener("change", event => {
+          state.ruleLevel = Math.min(5, Math.max(1, Number(event.target.value) || 1));
+          if (state.customMode) state.customMode = false;
+          if (currentExercise().level > state.ruleLevel) {
+            state.exerciseIndex = exercises.findIndex(ex => ex.level <= state.ruleLevel);
+          }
+          state.selectedRule = null;
+          saveState();
+          renderAll();
+          announce(`The proof toolbox now shows ${event.target.options[event.target.selectedIndex].text}.`);
+        });
+        els.undoButton.addEventListener("click", undoStep);
+        els.resetButton.addEventListener("click", () => resetExercise(true));
+        els.hintButton.addEventListener("click", giveHint);
+        els.popOutButton.addEventListener("click", () => {
+          const stepId = els.popOutButton.dataset.step;
+          if (stepId) applyStep(stepId);
+        });
+        els.notesToggle.addEventListener("change", event => {
+          state.notesVisible = event.target.checked;
+          saveState();
+          renderProof();
+        });
+        els.customProblemButton.addEventListener("click", openComposer);
+        els.composerClose.addEventListener("click", closeComposer);
+        els.composerCancel.addEventListener("click", closeComposer);
+        els.addAxiom.addEventListener("click", () => {
+          const input = addAxiomEditorRow("");
+          updateComposerPreview();
+          input?.focus();
+        });
+        els.customGoal.addEventListener("input", updateComposerPreview);
+        els.customGoal.addEventListener("focus", () => { state.activeFormulaInput = els.customGoal; });
+        els.composerForm.addEventListener("submit", submitComposer);
+        els.problemComposer.querySelectorAll("[data-insert]").forEach(button => {
+          button.addEventListener("click", () => insertComposerSymbol(button));
+        });
+      }
+
+      function registerWebMCP() {
+        const context = document.modelContext;
+        if (!context?.registerTool) return;
+        const register = tool => {
+          try {
+            void Promise.resolve(context.registerTool(tool)).catch(error => console.warn("WebMCP tool registration failed", error));
+          } catch (error) {
+            console.warn("WebMCP tool registration failed", error);
+          }
+        };
+
+        register({
+          name: "get_proof_state",
+          title: "Read proof state",
+          description: "Read the current exercise, proof lines, active goal, open pretend worlds, and legal next moves.",
+          inputSchema: { type: "object", properties: {}, additionalProperties: false },
+          annotations: { readOnlyHint: true, untrustedContentHint: false },
+          execute() {
+            const ex = currentExercise();
+            const [goal, contextText] = ex.goal(currentDone());
+            return {
+              exerciseId: ex.id,
+              title: ex.title,
+              target: ex.target,
+              proofLineStepIds: [...currentOrder()],
+              currentGoal: goal,
+              goalContext: contextText,
+              openWorlds: ex.worlds(currentDone()),
+              legalNextMoves: availableSteps().map(step => ({ stepId: step.id, rule: step.rule, label: step.label })),
+              complete: isComplete()
+            };
+          }
+        });
+
+        register({
+          name: "start_proof_exercise",
+          title: "Open a proof exercise",
+          description: "Open one of the proof exercises by its stable exercise ID.",
+          inputSchema: {
+            type: "object",
+            properties: { exerciseId: { type: "string", enum: exercises.map(ex => ex.id) } },
+            required: ["exerciseId"],
+            additionalProperties: false
+          },
+          annotations: { readOnlyHint: false, untrustedContentHint: false },
+          execute(input) {
+            const index = exercises.findIndex(ex => ex.id === input?.exerciseId);
+            if (index < 0) throw new Error("Unknown exercise ID.");
+            selectExercise(index);
+            return { exerciseId: currentExercise().id, title: currentExercise().title };
+          }
+        });
+
+        register({
+          name: "apply_proof_move",
+          title: "Apply a proof move",
+          description: "Apply one currently legal proof step. Read the proof state first to obtain legal step IDs.",
+          inputSchema: {
+            type: "object",
+            properties: { stepId: { type: "string" } },
+            required: ["stepId"],
+            additionalProperties: false
+          },
+          annotations: { readOnlyHint: false, untrustedContentHint: false },
+          execute(input) {
+            if (typeof input?.stepId !== "string") throw new Error("A step ID is required.");
+            return applyStep(input.stepId);
+          }
+        });
+
+        register({
+          name: "reset_current_proof",
+          title: "Reset the current proof",
+          description: "Clear all proof lines and saved completion for the currently open exercise.",
+          inputSchema: { type: "object", properties: {}, additionalProperties: false },
+          annotations: { readOnlyHint: false, untrustedContentHint: false },
+          execute() {
+            resetExercise(false);
+            return { exerciseId: currentExercise().id, reset: true };
+          }
+        });
+      }
+
+      loadState();
+      initEvents();
+      renderAll();
+      registerWebMCP();
+    })();
+  </script>
+</body>
+</html>
