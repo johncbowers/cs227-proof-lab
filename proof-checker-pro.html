@@ -1433,9 +1433,22 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       document.getElementById("compile").addEventListener("click", () => compile({ announce: true }));
       function appendProofLine(line) {
         if (!line) return;
-        const separator = els.source.value && !els.source.value.endsWith("\n") ? "\n" : "";
-        els.source.value += `${separator}${line}`;
-        els.source.setSelectionRange(els.source.value.length, els.source.value.length);
+        const value = els.source.value;
+        const caret = els.source.selectionStart ?? value.length;
+        const lineStart = value.lastIndexOf("\n", Math.max(0, caret - 1)) + 1;
+        const nextBreak = value.indexOf("\n", caret);
+        const lineEnd = nextBreak < 0 ? value.length : nextBreak;
+        const currentLine = value.slice(lineStart, lineEnd);
+
+        if (!currentLine.trim()) {
+          // Enter automatically adds indentation. Reuse that blank line instead
+          // of preserving its spaces and appending a second line beneath it.
+          els.source.setRangeText(line, lineStart, lineEnd, "end");
+        } else {
+          const separator = value && !value.endsWith("\n") ? "\n" : "";
+          els.source.value += `${separator}${line}`;
+          els.source.setSelectionRange(els.source.value.length, els.source.value.length);
+        }
         formatProofIndentation();
         updateNumbers();
         compile({ announce: true });
