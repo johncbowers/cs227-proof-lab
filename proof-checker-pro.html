@@ -252,8 +252,10 @@ FAM(c) = (∀ d in Creatures)(M(d) → F(c, d))</textarea>
           <p>End punctuation is optional. References are optional when the compiler can infer exactly which earlier lines you mean.</p>
           <ul>
             <li><code>Pretend Bob is a Creature</code> or <code>Let Bob be an arbitrary Creature</code> opens an arbitrary-object world.</li>
+            <li><code>Pretend X, Y are Numbers</code> or <code>Let X, Y be arbitrary Numbers</code> opens several arbitrary-object worlds at once.</li>
             <li><code>Make believe S(Bob)</code> or <code>Assume S(Bob)</code> opens a make-believe world.</li>
             <li><code>S(Bob) → M(Bob) by UI I</code> applies a rule and cites an axiom.</li>
+            <li><code>X &lt; Y → F(X) &lt; F(Y) by UI</code> may instantiate several leading quantifiers at once; the source reference may be omitted when it is unambiguous.</li>
             <li><code>M(Bob) by detachment 2, 3</code> cites proof lines.</li>
             <li><code>therefore S(Bob) → V(Bob) by MB 6</code> closes a make-believe world.</li>
             <li><code>therefore (∀ c in Creatures)(S(c) → V(c)) by UG 7</code> closes an arbitrary-object world.</li>
@@ -654,6 +656,25 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           .filter(term => term !== variable && (/^[A-Z]/.test(term) || /^-?\d/.test(term)));
         return candidates.find(term => sameFormula(substitute(pattern, variable, term), result)) || null;
       }
+      function instantiationSequence(universal, result, maxSteps = 8) {
+        function search(ast, steps) {
+          if (ast.type !== "forall" || steps.length >= maxSteps) return null;
+          if (sameFormula(ast.body, result) && !containsTerm(ast.body, ast.variable)) {
+            return [...steps, { variable: ast.variable, term: "unchanged" }];
+          }
+          const candidates = [...collectTerms(result), ...collectTerms(ast.body)]
+            .filter(term => term !== ast.variable && (/^[A-Z]/.test(term) || /^-?\d/.test(term)));
+          for (const term of [...new Set(candidates)]) {
+            const instance = substitute(ast.body, ast.variable, term);
+            const next = [...steps, { variable: ast.variable, term }];
+            if (sameFormula(instance, result)) return next;
+            const deeper = search(instance, next);
+            if (deeper) return deeper;
+          }
+          return null;
+        }
+        return search(universal, []);
+      }
       function deMorganPartners(ast) {
         const values = [];
         if (ast.type === "not" && ast.value.type === "and") values.push({ type: "or", left: { type: "not", value: ast.value.left }, right: { type: "not", value: ast.value.right } });
@@ -669,6 +690,12 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         if (/ies$/i.test(original)) return original.replace(/ies$/i, "y");
         if (/s$/i.test(original)) return original.replace(/s$/i, "");
         return original;
+      }
+      function displayPluralType(value) {
+        const original = String(value || "Objects").trim();
+        if (/s$/i.test(original)) return original;
+        if (/[^aeiou]y$/i.test(original)) return original.replace(/y$/i, "ies");
+        return `${original}s`;
       }
       function sameType(a, b) { return !a || !b || singularType(a) === singularType(b); }
       function isPrefix(prefix, whole) { return prefix.length <= whole.length && prefix.every((x, i) => x === whole[i]); }
@@ -741,17 +768,28 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         return (text.toUpperCase().match(/A\d+|\b[IVXLCDM]+\b|\d+/g) || []);
       }
 
+      function parseArbitraryNames(text) {
+        const names = text.split(",").map(name => name.trim()).filter(Boolean);
+        if (!names.length || names.some(name => !/^[A-Za-z][A-Za-z0-9_]*$/.test(name))) throw new Error("List arbitrary-object names separated by commas.");
+        const invalid = names.find(name => !/^[A-Z]/.test(name));
+        if (invalid) throw new Error(`Introduced individual ${invalid} must begin with an uppercase letter.`);
+        if (new Set(names).size !== names.length) throw new Error("Each arbitrary object on the line needs a different name.");
+        return names;
+      }
+
       function parseCommand(raw) {
         const clean = stripPeriod(convertShorthand(raw));
-        let match = clean.match(/^Pretend\s+([A-Za-z][A-Za-z0-9_]*)\s+is\s+(?:an?\s+)?(?:arbitrary\s+)?([A-Za-z][A-Za-z0-9_]*)$/i);
+        const nameList = "[A-Za-z][A-Za-z0-9_]*(?:\\s*,\\s*[A-Za-z][A-Za-z0-9_]*)*";
+        let match = clean.match(new RegExp(`^Pretend\\s+(${nameList})\\s+(is|are)\\s+(?:an?\\s+)?(?:arbitrary\\s+)?([A-Za-z][A-Za-z0-9_]*)$`, "i"));
         if (match) {
-          if (!/^[A-Z]/.test(match[1])) throw new Error(`Introduced individual ${match[1]} must begin with an uppercase letter.`);
-          return { kind: "ug_open", name: match[1], domain: match[2] };
+          const names = parseArbitraryNames(match[1]);
+          if (names.length === 1 && match[2].toLowerCase() !== "is") throw new Error("Use “is” when introducing one arbitrary object.");
+          if (names.length > 1 && match[2].toLowerCase() !== "are") throw new Error("Use “are” when introducing several arbitrary objects.");
+          return { kind: "ug_open", names, domain: match[3] };
         }
-        match = clean.match(/^Let\s+([A-Za-z][A-Za-z0-9_]*)\s+be\s+(?:an?\s+)?(?:arbitrary\s+)?([A-Za-z][A-Za-z0-9_]*)$/i);
+        match = clean.match(new RegExp(`^Let\\s+(${nameList})\\s+be\\s+(?:an?\\s+)?(?:arbitrary\\s+)?([A-Za-z][A-Za-z0-9_]*)$`, "i"));
         if (match) {
-          if (!/^[A-Z]/.test(match[1])) throw new Error(`Introduced individual ${match[1]} must begin with an uppercase letter.`);
-          return { kind: "ug_open", name: match[1], domain: match[2] };
+          return { kind: "ug_open", names: parseArbitraryNames(match[1]), domain: match[2] };
         }
         match = clean.match(/^Make\s+believe\s+(.+)$/i);
         if (match) return { kind: "mb_open", wording: "make believe", ...parseFormulaPair(match[1]) };
@@ -799,7 +837,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       function inferRefs(rule, ast, sources, path, top) {
         const pool = accessibleSources(sources, path);
         if (rule === "axiom") return unique(pool.filter(x => x.axiom && sameFormula(x.ast, ast)), "No axiom matches this statement.", "More than one axiom matches");
-        if (rule === "ui") return unique(pool.filter(x => x.ast.type === "forall" && instantiationTerm(x.ast.body, ast, x.ast.variable)), "No available universal statement produces this line by UI.", "UI has more than one possible source");
+        if (rule === "ui") return unique(pool.filter(x => x.ast.type === "forall" && instantiationSequence(x.ast, ast)), "No available universal statement produces this line by UI.", "UI has more than one possible source");
         if (rule === "detach") {
           const pairs = [];
           pool.filter(x => x.ast.type === "imp" && sameFormula(x.ast.right, ast)).forEach(imp => pool.filter(x => sameFormula(x.ast, imp.ast.left)).forEach(left => pairs.push([imp, left])));
@@ -827,10 +865,12 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         }
         if (rule === "ui") {
           if (refs.length !== 1 || refs[0].ast.type !== "forall") throw new Error("UI needs one universal statement.");
-          const term = instantiationTerm(refs[0].ast.body, ast, refs[0].ast.variable);
-          if (!term) throw new Error(`Replacing ${refs[0].ast.variable} with one object does not produce this statement.`);
-          if (term !== "unchanged" && /^[a-z]/.test(term)) throw new Error(`Individual name ${term} must begin with an uppercase letter.`);
-          return `UI from ${refs[0].ref}${term === "unchanged" ? "" : `, taking ${refs[0].ast.variable} to ${term}`}`;
+          const substitutions = instantiationSequence(refs[0].ast, ast);
+          if (!substitutions) throw new Error("Replacing one or more leading quantified variables does not produce this statement.");
+          const invalid = substitutions.find(item => item.term !== "unchanged" && /^[a-z]/.test(item.term));
+          if (invalid) throw new Error(`Individual name ${invalid.term} must begin with an uppercase letter.`);
+          const assignments = substitutions.filter(item => item.term !== "unchanged").map(item => `${item.variable} to ${item.term}`);
+          return `UI from ${refs[0].ref}${assignments.length ? `, taking ${assignments.join(" and ")}` : ""}`;
         }
         if (rule === "detach") {
           if (refs.length !== 2) throw new Error("Detachment needs two sources: an implication and its if-part.");
@@ -1053,7 +1093,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           if (ast.type !== "forall" || steps.length >= maxSteps) return;
           terms.forEach(term => {
             const instance = substitute(ast.body, ast.variable, term);
-            const nextSteps = [...steps, { ast: instance, term }];
+            const nextSteps = [...steps, { ast: instance, variable: ast.variable, term }];
             plans.push({ ast: instance, steps: nextSteps });
             visit(instance, nextSteps);
           });
@@ -1062,11 +1102,11 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         return plans;
       }
 
-      function firstUiHint(source, plan) {
-        const first = plan.steps[0];
+      function uiPlanHint(source, plan) {
+        const assignments = plan.steps.map(step => `${step.variable} with ${step.term}`);
         return {
-          strategy: `${source.label || `Line ${source.ref}`} can be specialized toward the goal. First replace its outer variable with ${first.term}.`,
-          line: `${formatFormula(first.ast)} by UI ${source.ref}`
+          strategy: `Specialize ${source.label || `line ${source.ref}`} by replacing ${assignments.join(" and ")}.`,
+          line: `${formatFormula(plan.ast)} by UI ${source.ref}`
         };
       }
 
@@ -1102,7 +1142,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         const exactPlan = plans.find(plan => sameFormula(plan.ast, target));
         if (exactPlan) {
           if (exactPlan.steps.length === 1) return { strategy: `Instantiate ${exactPlan.source.label || `line ${exactPlan.source.ref}`} at ${exactPlan.steps[0].term}.`, line: `${statement} by UI ${exactPlan.source.ref}` };
-          return firstUiHint(exactPlan.source, exactPlan);
+          return uiPlanHint(exactPlan.source, exactPlan);
         }
 
         for (const implication of pool.filter(source => source.ast.type === "imp" && sameFormula(source.ast.right, target))) {
@@ -1124,7 +1164,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
             if (subhint) return { strategy: `${plan.source.label || `Line ${plan.source.ref}`} can eventually produce an implication ending in the goal. First establish its if-part. ${subhint.strategy}`, line: subhint.line };
           }
           if (plan.steps.length === 1) return { strategy: `Instantiate ${plan.source.label || `line ${plan.source.ref}`} at ${plan.steps[0].term} to obtain an implication aimed at the goal.`, line: `${formatFormula(plan.ast)} by UI ${plan.source.ref}` };
-          return firstUiHint(plan.source, plan);
+          return uiPlanHint(plan.source, plan);
         }
 
         return null;
@@ -1136,11 +1176,25 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         const path = scopes.map(scope => scope.id);
         if (expanded?.type === "forall") {
           const effectiveDomain = expanded.domain || inferredDomain(expanded.body);
-          const name = freshHintName(effectiveDomain, scopes, sources, goal);
+          const names = [];
+          const plannedScopes = [...scopes];
+          let cursor = expanded;
+          while (cursor?.type === "forall") {
+            const cursorDomain = cursor.domain || inferredDomain(cursor.body);
+            if (!sameType(cursorDomain, effectiveDomain)) break;
+            const name = freshHintName(effectiveDomain, plannedScopes, sources, goal);
+            names.push(name);
+            plannedScopes.push({ name });
+            cursor = cursor.body;
+          }
           const domain = displayType(effectiveDomain);
           return {
-            strategy: "The goal is universal. Simplify it by working with one arbitrary object of the quantified type.",
-            line: `Let ${name} be an arbitrary ${domain}`
+            strategy: names.length === 1
+              ? "The goal is universal. Simplify it by working with one arbitrary object of the quantified type."
+              : "The goal begins with several universal quantifiers of the same type. Introduce those arbitrary objects together.",
+            line: names.length === 1
+              ? `Let ${names[0]} be an arbitrary ${domain}`
+              : `Let ${names.join(", ")} be arbitrary ${displayPluralType(effectiveDomain)}`
           };
         }
         if (expanded?.type === "imp") {
@@ -1238,13 +1292,11 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       function isWorldCloser(line) {
         return /^(?:∴|therefore)\b.*\bby\s+(?:MB|UG|EI|case)\b/i.test(line.trim());
       }
-      function isWorldOpener(line) {
+      function worldsOpened(line) {
         const text = line.trim();
-        return /^Make\s+believe\b/i.test(text)
-          || /^Assume\b/i.test(text)
-          || /^Case\s+(?:1|2|left|right)\s*:/i.test(text)
-          || /^Pretend\s+[A-Za-z][A-Za-z0-9_]*\s+is\s+/i.test(text)
-          || /^Let\s+[A-Za-z][A-Za-z0-9_]*\s+be\s+/i.test(text);
+        if (/^Make\s+believe\b/i.test(text) || /^Assume\b/i.test(text) || /^Case\s+(?:1|2|left|right)\s*:/i.test(text)) return 1;
+        const arbitrary = text.match(/^(?:Pretend|Let)\s+([A-Za-z][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_]*)*)\s+(?:is|are|be)\b/i);
+        return arbitrary ? arbitrary[1].split(",").length : 0;
       }
 
       function proofLayout(lines) {
@@ -1254,7 +1306,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           if (!trimmed || /^(?:#|\/\/)/.test(trimmed)) return { depth, trimmed, blank: true };
           const closes = isWorldCloser(trimmed);
           const lineDepth = closes ? Math.max(0, depth - 1) : depth;
-          depth = Math.max(0, depth + (isWorldOpener(trimmed) ? 1 : 0) - (closes ? 1 : 0));
+          depth = Math.max(0, depth + worldsOpened(trimmed) - (closes ? 1 : 0));
           return { depth: lineDepth, trimmed, blank: false };
         });
       }
@@ -1381,16 +1433,21 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
             let message = "";
 
             if (command.kind === "ug_open") {
-              const used = outerFormulas.some(x => containsTerm(x, command.name)) || [...sources.values()].some(x => containsTerm(x.ast, command.name));
-              if (used) throw new Error(`${command.name} is already used. Choose a fresh name for the arbitrary ${command.domain}.`);
-              const expected = currentGoalState(goalSurface, goal, scopes).expanded;
-              if (expected?.type === "forall" && !sameType(expected.domain, command.domain)) throw new Error(`The current goal quantifies over ${expected.domain}, not ${command.domain}.`);
-              const scope = { id: `scope-${++scopeCounter}`, type: "ug", name: command.name, domain: command.domain, label: `${command.name} is an arbitrary ${command.domain}` };
-              scopes.push(scope);
+              for (const name of command.names) {
+                const used = scopes.some(scope => scope.name === name || scope.witness === name)
+                  || outerFormulas.some(x => containsTerm(x, name))
+                  || [...sources.values()].some(x => containsTerm(x.ast, name));
+                if (used) throw new Error(`${name} is already used. Choose a fresh name for the arbitrary ${command.domain}.`);
+                const expected = currentGoalState(goalSurface, goal, scopes).expanded;
+                if (expected?.type === "forall" && !sameType(expected.domain, command.domain)) throw new Error(`The current goal quantifies over ${expected.domain}, not ${command.domain}.`);
+                scopes.push({ id: `scope-${++scopeCounter}`, type: "ug", name, domain: command.domain, label: `${name} is an arbitrary ${displayType(command.domain)}` });
+              }
               sourcePath = scopes.map(x => x.id);
               usable = false;
-              meta = { opening: "ug" };
-              message = `opened an arbitrary-${command.domain} world`;
+              meta = { opening: "ug", count: command.names.length };
+              message = command.names.length === 1
+                ? `opened a world for arbitrary ${displayType(command.domain)} ${command.names[0]}`
+                : `opened worlds for arbitrary ${displayPluralType(command.domain)} ${command.names.join(", ")}`;
             } else if (command.kind === "mb_open") {
               const scope = { id: `scope-${++scopeCounter}`, type: "mb", assumption: ast, surfaceAssumption: surfaceAst, label: `${command.wording || "make believe"} ${formatFormula(surfaceAst || ast)}` };
               scopes.push(scope);
@@ -1505,7 +1562,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           const lines = els.source.value.split("\n");
           const item = proofLayout(lines)[lineIndex] || { depth: 0 };
           const current = lines[lineIndex] || "";
-          const nextDepth = item.depth + (isWorldOpener(current) ? 1 : 0);
+          const nextDepth = item.depth + worldsOpened(current);
           els.source.setRangeText(`\n${"  ".repeat(nextDepth)}`, start, end, "end");
           updateNumbers(); scheduleCompile();
         }
@@ -1572,7 +1629,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         els.definitions.value = "Monotone(f) = (∀ x, y)(x < y → f(x) < f(y))\nBetween(x, y, z) = ((x ≤ y ∧ y ≤ z) ∨ (z ≤ y ∧ y ≤ x))";
         els.axioms.value = "Monotone(F)\nMonotone(G)";
         els.goal.value = "(∀ x, y)(x < y → F(G(x)) < F(G(y)))";
-        els.source.value = "Let X be an arbitrary Number.\n  Let Y be an arbitrary Number.\n    Assume X < Y.\n      (∀ y)(X < y → G(X) < G(y)) by UI II\n      X < Y → G(X) < G(Y) by UI 4\n      G(X) < G(Y) by detachment 5, 3\n      (∀ y)(G(X) < y → F(G(X)) < F(y)) by UI I\n      G(X) < G(Y) → F(G(X)) < F(G(Y)) by UI 7\n      F(G(X)) < F(G(Y)) by detachment 8, 6\n    therefore X < Y → F(G(X)) < F(G(Y)) by MB 9\n  therefore (∀ y)(X < y → F(G(X)) < F(G(y))) by UG 10\ntherefore (∀ x, y)(x < y → F(G(x)) < F(G(y))) by UG 11";
+        els.source.value = "Pretend X, Y are Numbers.\n    Assume X < Y.\n      X < Y → G(X) < G(Y) by UI\n      G(X) < G(Y) by detachment 3, 2\n      G(X) < G(Y) → F(G(X)) < F(G(Y)) by UI\n      F(G(X)) < F(G(Y)) by detachment 5, 4\n    therefore X < Y → F(G(X)) < F(G(Y)) by MB 6\n  therefore (∀ y)(X < y → F(G(X)) < F(G(y))) by UG 7\ntherefore (∀ x, y)(x < y → F(G(x)) < F(G(y))) by UG 8";
         updateNumbers(); updateAxiomNumbers(); compile({ announce: true });
       });
       document.getElementById("clear-proof").addEventListener("click", () => { els.source.value = ""; updateNumbers(); compile({ announce: true }); els.source.focus(); });
