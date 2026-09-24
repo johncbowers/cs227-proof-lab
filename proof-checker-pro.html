@@ -106,6 +106,14 @@
     .goal-progress-message { color: var(--green); font-size: .86rem; font-weight: 800; }
     .goal-progress-button { min-height: 2rem; padding: .3rem .58rem; border: 1px solid rgb(110 231 183 / .5); border-radius: 4px; background: rgb(6 78 59 / .28); color: #d1fae5; cursor: pointer; font-weight: 800; }
     .goal-progress-button:hover, .goal-progress-button:focus-visible { border-color: var(--focus); background: rgb(6 95 70 / .5); outline: none; }
+    .hint-tools { margin-top: .5rem; }
+    .hint-tools[hidden], .hint-output[hidden], .hint-line[hidden] { display: none; }
+    .hint-button { min-height: 2rem; padding: .3rem .62rem; border: 1px solid #586985; border-radius: 4px; background: #202b44; color: #edf2ff; cursor: pointer; font-weight: 800; }
+    .hint-button:hover, .hint-button:focus-visible { border-color: var(--focus); background: #2b3957; outline: none; }
+    .hint-output { margin-top: .5rem; padding: .55rem .65rem; border-left: 3px solid var(--purple-deep); background: rgb(11 17 32 / .55); color: #cbd5e1; font-size: .88rem; }
+    .hint-output p { margin: 0; }
+    .hint-line { display: block; margin-top: .45rem; color: #e9d5ff; overflow-wrap: anywhere; }
+    .hint-insert { margin-top: .5rem; }
     #worlds { display: grid; gap: .16rem; color: var(--cyan); }
     .world-line { display: block; padding-left: calc(var(--depth) * .45rem); overflow-wrap: anywhere; }
     .world-rail { color: #8b5cf6; }
@@ -265,6 +273,14 @@ FAM(c) = (∀ d in Creatures)(M(d) → F(c, d))</textarea>
               <span class="goal-progress-message" id="goal-progress-message"></span>
               <button class="goal-progress-button" id="add-pop-line" type="button">Add pop-out line</button>
             </div>
+            <div class="hint-tools" id="hint-tools" hidden>
+              <button class="hint-button" id="show-hint" type="button" aria-expanded="false" aria-controls="hint-output">Hint</button>
+              <div class="hint-output" id="hint-output" role="status" hidden>
+                <p id="hint-text"></p>
+                <code class="hint-line" id="hint-line" hidden></code>
+                <button class="hint-button hint-insert" id="insert-hint-line" type="button" hidden>Insert suggested line</button>
+              </div>
+            </div>
           </div>
           <div class="state-block">
             <span class="state-label">pretend worlds</span>
@@ -357,6 +373,12 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         goalProgress: document.getElementById("goal-progress"),
         goalProgressMessage: document.getElementById("goal-progress-message"),
         addPopLine: document.getElementById("add-pop-line"),
+        hintTools: document.getElementById("hint-tools"),
+        showHint: document.getElementById("show-hint"),
+        hintOutput: document.getElementById("hint-output"),
+        hintText: document.getElementById("hint-text"),
+        hintLine: document.getElementById("hint-line"),
+        insertHintLine: document.getElementById("insert-hint-line"),
         worlds: document.getElementById("worlds"),
         announcer: document.getElementById("announcer")
       };
@@ -364,6 +386,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       let compileTimer = 0;
       let predicateDefinitions = new Map();
       let pendingPopLine = "";
+      let pendingHint = null;
 
       const replacements = [
         [/\\forall\b/g, "∀"], [/\\exists\b/g, "∃"], [/\\neg\b/g, "¬"],
@@ -578,6 +601,12 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       }
 
       function singularType(value) { return String(value || "").trim().toLowerCase().replace(/ies$/, "y").replace(/s$/, ""); }
+      function displayType(value) {
+        const original = String(value || "Object").trim();
+        if (/ies$/i.test(original)) return original.replace(/ies$/i, "y");
+        if (/s$/i.test(original)) return original.replace(/s$/i, "");
+        return original;
+      }
       function sameType(a, b) { return !a || !b || singularType(a) === singularType(b); }
       function isPrefix(prefix, whole) { return prefix.length <= whole.length && prefix.every((x, i) => x === whole[i]); }
       function roman(number) {
@@ -900,6 +929,143 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         }
       }
 
+      function renderHint(hint) {
+        pendingHint = hint;
+        els.hintTools.hidden = !hint;
+        els.hintOutput.hidden = true;
+        els.showHint.setAttribute("aria-expanded", "false");
+        els.hintText.textContent = "";
+        els.hintLine.hidden = true;
+        els.hintLine.textContent = "";
+        els.insertHintLine.hidden = true;
+      }
+
+      function formulaForHint(surface, expanded) {
+        if (surface) {
+          try {
+            if (sameFormula(expandPredicates(surface), expanded)) return surface;
+          } catch {}
+        }
+        return expanded;
+      }
+
+      function objectNames(ast, result = new Set()) {
+        if (!ast) return result;
+        if (ast.type === "atom") {
+          const pattern = /[A-Za-z][A-Za-z0-9_]*|-?\d+(?:\.\d+)?/g;
+          let match;
+          while ((match = pattern.exec(ast.value))) {
+            const token = match[0];
+            const after = ast.value.slice(match.index + token.length).trimStart();
+            if (/^-?\d/.test(token) || (/^[A-Z]/.test(token) && !after.startsWith("("))) result.add(token);
+          }
+        } else if (ast.type === "not") objectNames(ast.value, result);
+        else if (ast.type === "forall" || ast.type === "exists") objectNames(ast.body, result);
+        else { objectNames(ast.left, result); objectNames(ast.right, result); }
+        return result;
+      }
+
+      function hintTerms(target, scopes, sources, path) {
+        const terms = [];
+        [...scopes].reverse().forEach(scope => {
+          if (scope.name) terms.push(scope.name);
+          if (scope.witness) terms.push(scope.witness);
+        });
+        objectNames(target).forEach(term => terms.push(term));
+        accessibleSources(sources, path).forEach(source => objectNames(source.ast).forEach(term => terms.push(term)));
+        return [...new Set(terms)];
+      }
+
+      function freshHintName(domain, scopes, sources, goal) {
+        const kind = singularType(domain);
+        const candidates = kind === "creature"
+          ? ["Bob", "Ari", "Dana", "Eli", "Fia", "Gus"]
+          : kind === "number" ? ["X", "Y", "Z", "W", "A", "B"]
+          : kind === "function" ? ["F", "G", "H", "J", "K"]
+          : ["A", "B", "C", "D", "E", "F"];
+        const used = new Set(scopes.flatMap(scope => [scope.name, scope.witness]).filter(Boolean));
+        objectNames(goal).forEach(name => used.add(name));
+        [...sources.values()].forEach(source => objectNames(source.ast).forEach(name => used.add(name)));
+        return candidates.find(name => !used.has(name)) || `Object${used.size + 1}`;
+      }
+
+      function proofStepHint(target, surface, sources, path, scopes, depth = 0, visited = new Set()) {
+        if (!target || depth > 4) return null;
+        const key = formatFormula(target);
+        if (visited.has(key)) return null;
+        const nextVisited = new Set(visited);
+        nextVisited.add(key);
+        const pool = accessibleSources(sources, path);
+        const statement = formatFormula(formulaForHint(surface, target));
+
+        const axiom = pool.find(source => source.axiom && sameFormula(source.ast, target));
+        if (axiom) return { strategy: `The goal is already one of the axioms. Restate Axiom ${axiom.ref}.`, line: `${statement} by axiom ${axiom.ref}` };
+
+        const terms = hintTerms(target, scopes, sources, path);
+        for (const source of pool.filter(item => item.ast.type === "forall")) {
+          for (const term of terms) {
+            const instance = substitute(source.ast.body, source.ast.variable, term);
+            if (sameFormula(instance, target)) {
+              return { strategy: `Instantiate ${source.label || `line ${source.ref}`} at ${term}.`, line: `${statement} by UI ${source.ref}` };
+            }
+          }
+        }
+
+        for (const implication of pool.filter(source => source.ast.type === "imp" && sameFormula(source.ast.right, target))) {
+          const antecedent = pool.find(source => sameFormula(source.ast, implication.ast.left));
+          if (antecedent) {
+            return { strategy: `The goal follows by detachment from ${implication.ref} and ${antecedent.ref}.`, line: `${statement} by detachment ${implication.ref}, ${antecedent.ref}` };
+          }
+        }
+
+        for (const implication of pool.filter(source => source.ast.type === "imp" && sameFormula(source.ast.right, target))) {
+          const subhint = proofStepHint(implication.ast.left, implication.ast.left, sources, path, scopes, depth + 1, nextVisited);
+          if (subhint) return { strategy: `Line ${implication.ref} will give the goal by detachment once its if-part is established. ${subhint.strategy}`, line: subhint.line };
+        }
+
+        for (const source of pool.filter(item => item.ast.type === "forall")) {
+          for (const term of terms) {
+            const instance = substitute(source.ast.body, source.ast.variable, term);
+            if (instance.type !== "imp" || !sameFormula(instance.right, target)) continue;
+            const antecedent = pool.find(item => sameFormula(item.ast, instance.left));
+            if (!antecedent) {
+              const subhint = proofStepHint(instance.left, instance.left, sources, path, scopes, depth + 1, nextVisited);
+              if (subhint) return { strategy: `${source.label || `Line ${source.ref}`} can be instantiated to produce an implication ending in the goal. First establish its if-part. ${subhint.strategy}`, line: subhint.line };
+            }
+            return { strategy: `Instantiate ${source.label || `line ${source.ref}`} at ${term} to obtain an implication aimed at the goal.`, line: `${formatFormula(instance)} by UI ${source.ref}` };
+          }
+        }
+
+        return null;
+      }
+
+      function nextProofHint(target, scopes, sources, goal) {
+        const expanded = target.expanded;
+        const surface = target.surface;
+        const path = scopes.map(scope => scope.id);
+        if (expanded?.type === "forall") {
+          const name = freshHintName(expanded.domain, scopes, sources, goal);
+          const domain = displayType(expanded.domain);
+          return {
+            strategy: "The goal is universal. Simplify it by working with one arbitrary object of the quantified type.",
+            line: `Let ${name} be an arbitrary ${domain}`
+          };
+        }
+        if (expanded?.type === "imp") {
+          const surfaceAntecedent = surface?.type === "imp" ? surface.left : expanded.left;
+          return {
+            strategy: "The goal is an implication. Simplify it by assuming its if-part inside a pretend world.",
+            line: `Assume ${formatFormula(surfaceAntecedent)}`
+          };
+        }
+        const step = proofStepHint(expanded, surface, sources, path, scopes);
+        if (step) return step;
+        if (expanded?.type === "and") return { strategy: "The goal is a conjunction. Establish each part, then use and introduction.", line: "" };
+        if (expanded?.type === "or") return { strategy: "The goal is a disjunction. Look for one side you can establish, then use or introduction.", line: "" };
+        if (expanded?.type === "exists") return { strategy: "The goal is existential. Find a specific witness and establish the required statement about it before using existential generalization.", line: "" };
+        return { strategy: "Work backward from the goal: look for an available implication ending with this statement, or a universal axiom that can produce such an implication.", line: "" };
+      }
+
       function renderWorlds(scopes) {
         els.worlds.replaceChildren();
         if (!scopes.length) {
@@ -1065,6 +1231,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         renderLineStatuses(els.source.value.split(/\r?\n/).map(() => null));
         renderGoal(null);
         renderGoalProgress(null);
+        renderHint(null);
         els.worlds.textContent = "original world";
         let axioms, goal, goalSurface;
         try { predicateDefinitions = parseDefinitions(); }
@@ -1198,7 +1365,10 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         renderGoal(target);
         renderWorlds(scopes);
         const complete = !failed && !scopes.length && sameFormula(lastOuter, goal);
-        renderGoalProgress(!failed ? nextPopSuggestion(goalSurface, goal, scopes, sources) : null, complete);
+        const popSuggestion = !failed ? nextPopSuggestion(goalSurface, goal, scopes, sources) : null;
+        renderGoalProgress(popSuggestion, complete);
+        if (failed) renderHint({ strategy: `Fix line ${failed.line} before asking for the next proof move. The compiler message identifies the first problem.`, line: "" });
+        else if (!complete && !popSuggestion) renderHint(nextProofHint(target, scopes, sources, goal));
 
         if (failed) {
           els.source.setAttribute("aria-invalid", "true");
@@ -1261,16 +1431,31 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         input.focus(); updateNumbers(); scheduleCompile();
       }));
       document.getElementById("compile").addEventListener("click", () => compile({ announce: true }));
-      els.addPopLine.addEventListener("click", () => {
-        if (!pendingPopLine) return;
+      function appendProofLine(line) {
+        if (!line) return;
         const separator = els.source.value && !els.source.value.endsWith("\n") ? "\n" : "";
-        els.source.value += `${separator}${pendingPopLine}`;
+        els.source.value += `${separator}${line}`;
         els.source.setSelectionRange(els.source.value.length, els.source.value.length);
         formatProofIndentation();
         updateNumbers();
         compile({ announce: true });
         els.source.focus();
+      }
+      els.addPopLine.addEventListener("click", () => {
+        appendProofLine(pendingPopLine);
       });
+      els.showHint.addEventListener("click", () => {
+        if (!pendingHint) return;
+        const showing = els.hintOutput.hidden;
+        els.hintOutput.hidden = !showing;
+        els.showHint.setAttribute("aria-expanded", String(showing));
+        if (!showing) return;
+        els.hintText.textContent = pendingHint.strategy;
+        els.hintLine.hidden = !pendingHint.line;
+        els.hintLine.textContent = pendingHint.line || "";
+        els.insertHintLine.hidden = !pendingHint.line;
+      });
+      els.insertHintLine.addEventListener("click", () => appendProofLine(pendingHint?.line));
       document.getElementById("load-example").addEventListener("click", () => {
         els.definitions.value = "FAS(c) = (∀ d in Creatures)(S(d) → F(c, d))\nFAM(c) = (∀ d in Creatures)(M(d) → F(c, d))";
         els.axioms.value = "(∀ c in Creatures) (S(c) → M(c))";
