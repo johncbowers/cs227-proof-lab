@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="How to write and check proofs in CS 227 Proof Checker Pro.">
+  <meta name="theme-color" content="#111a2c">
+  <title>Proof Checker Pro Guide · CS 227 Proof Tools</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='13' fill='%23111a2c'/%3E%3Cpath d='M15 20l10 10-10 10M31 42h18' fill='none' stroke='%23c084fc' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #edf2ff;
+      --muted: #aebbd0;
+      --panel: #161f33;
+      --panel-2: #10192a;
+      --line: #3a4966;
+      --purple: #d8b4fe;
+      --cyan: #67e8f9;
+      --green: #86efac;
+      --focus: #bae6fd;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 82% -8%, rgb(126 34 206 / .22), transparent 34rem),
+        radial-gradient(circle at 8% 0, rgb(8 145 178 / .12), transparent 28rem),
+        #0b1020;
+      color: var(--ink);
+      font: 17px/1.62 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: var(--cyan); }
+    a:hover, a:focus-visible { color: white; }
+    .skip-link { position: absolute; left: .75rem; top: -5rem; padding: .6rem .8rem; background: white; color: #111827; z-index: 10; }
+    .skip-link:focus { top: .75rem; }
+    .shell { width: min(1060px, calc(100% - 2rem)); margin: 0 auto; padding: 1rem 0 4rem; }
+    .topbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .7rem 1rem; margin-bottom: 1.8rem; }
+    .topbar a { color: #dbeafe; font-weight: 800; text-decoration: none; }
+    .topbar a:hover, .topbar a:focus-visible { color: white; text-decoration: underline; }
+    header { max-width: 850px; margin-bottom: 1.8rem; }
+    .eyebrow { margin: 0 0 .35rem; color: var(--purple); font: 850 .82rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .1em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(2rem, 6vw, 3.45rem); line-height: 1.05; }
+    header p { max-width: 760px; margin: .8rem 0 0; color: #c4d0e3; font-size: 1.08rem; }
+    .page-grid { display: grid; grid-template-columns: minmax(190px, .28fr) minmax(0, 1fr); gap: 1.3rem; align-items: start; }
+    .contents { position: sticky; top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 7px; background: rgb(16 25 42 / .95); }
+    .contents h2 { margin: 0 0 .55rem; font-size: 1rem; }
+    .contents ol { margin: 0; padding-left: 1.25rem; }
+    .contents li + li { margin-top: .32rem; }
+    .contents a { color: #c9d7ea; text-decoration: none; }
+    .contents a:hover, .contents a:focus-visible { color: white; text-decoration: underline; }
+    article { min-width: 0; }
+    section { scroll-margin-top: 1rem; padding: 1.25rem 1.35rem; border: 1px solid var(--line); border-radius: 7px; background: rgb(22 31 51 / .96); box-shadow: 0 18px 45px rgb(0 0 0 / .17); }
+    section + section { margin-top: .85rem; }
+    h2 { margin: 0 0 .65rem; font-size: 1.45rem; line-height: 1.2; }
+    h3 { margin: 1.15rem 0 .35rem; font-size: 1.05rem; color: #f4e8ff; }
+    p { margin: .45rem 0; }
+    ul, ol { margin: .55rem 0; padding-left: 1.45rem; }
+    li + li { margin-top: .28rem; }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    code { color: #f0d9ff; font-size: .9em; }
+    pre { margin: .65rem 0; padding: .85rem 1rem; overflow: auto; border: 1px solid #33415d; border-radius: 5px; background: #090f1d; color: #eff6ff; font-size: .89rem; line-height: 1.58; white-space: pre; }
+    .callout { margin: .85rem 0; padding: .7rem .8rem; border-left: 4px solid var(--cyan); background: rgb(8 145 178 / .1); }
+    .success { border-left-color: var(--green); background: rgb(22 101 52 / .15); }
+    table { width: 100%; border-collapse: collapse; margin: .7rem 0; font-size: .92rem; }
+    th, td { padding: .55rem .65rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #1e2a43; }
+    kbd { padding: .08rem .35rem; border: 1px solid #61708c; border-bottom-width: 2px; border-radius: 3px; background: #202b44; color: white; font: .82em ui-monospace, monospace; }
+    .rule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+    .rule { padding: .75rem; border: 1px solid #384763; border-radius: 5px; background: var(--panel-2); }
+    .rule h3 { margin-top: 0; }
+    footer { margin-top: 1.3rem; color: var(--muted); text-align: center; }
+    :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    @media (max-width: 790px) {
+      .page-grid { grid-template-columns: 1fr; }
+      .contents { position: static; }
+      .rule-grid { grid-template-columns: 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#guide">Skip to the guide</a>
+  <main class="shell">
+    <nav class="topbar" aria-label="Proof Checker Pro navigation">
+      <a href="index.html">← All proof tools</a>
+      <a href="proof-checker-pro.html">Open Proof Checker Pro →</a>
+    </nav>
+
+    <header>
+      <p class="eyebrow">CS 227 proof tools</p>
+      <h1>How to use Proof Checker Pro</h1>
+      <p>Proof Checker Pro reads a proof as a short program. You state the problem, enter one proof command per line, and use the goal and compiler messages to decide what to write next.</p>
+    </header>
+
+    <div class="page-grid">
+      <nav class="contents" aria-label="Guide contents">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#start">Quick start</a></li>
+          <li><a href="#problem">Enter the problem</a></li>
+          <li><a href="#workflow">Follow the goal</a></li>
+          <li><a href="#worlds">Pretend worlds</a></li>
+          <li><a href="#rules">Proof rules</a></li>
+          <li><a href="#example">Worked example</a></li>
+          <li><a href="#feedback">Compiler feedback</a></li>
+          <li><a href="#notation">Notation and shorthand</a></li>
+        </ol>
+      </nav>
+
+      <article id="guide">
+        <section id="start">
+          <h2>Quick start</h2>
+          <ol>
+            <li>Enter any predicate definitions.</li>
+            <li>Enter one axiom per line. The checker supplies Roman numerals.</li>
+            <li>Enter the goal.</li>
+            <li>Write one proof command per line.</li>
+            <li>Watch the current goal, pretend worlds, checkmarks, and compiler output as you type.</li>
+          </ol>
+          <div class="callout success"><strong>The checker runs automatically.</strong> The Compile proof button is useful when you want to recheck deliberately, but you do not need to press it after every line.</div>
+        </section>
+
+        <section id="problem">
+          <h2>Enter the problem</h2>
+          <h3>Predicate definitions</h3>
+          <p>Definitions give a short name to a longer statement. Formal parameters begin with lowercase letters.</p>
+          <pre><code>FAS(c) = (∀ d in Creatures)(S(d) → F(c, d))
+FAM(c) = (∀ d in Creatures)(M(d) → F(c, d))</code></pre>
+          <p>The goal display shows both the short name and its expansion when that information is useful.</p>
+
+          <h3>Axioms</h3>
+          <p>Enter one axiom per line. Do not type the Roman numerals unless you want to supply a particular label yourself.</p>
+          <pre><code>(∀ c in Creatures)(S(c) → M(c))
+(∀ c in Creatures)(M(c) → V(c))</code></pre>
+          <p>These become Axioms I and II. You may cite an axiom by writing its Roman numeral after a rule name.</p>
+
+          <h3>Goal</h3>
+          <pre><code>(∀ c in Creatures)(S(c) → V(c))</code></pre>
+          <p>The current-goal display changes whenever you enter or leave a pretend world.</p>
+        </section>
+
+        <section id="workflow">
+          <h2>Follow the shape of the goal</h2>
+          <p>The outermost part of the goal usually determines the first move.</p>
+          <table>
+            <thead><tr><th>Goal begins with</th><th>First move</th></tr></thead>
+            <tbody>
+              <tr><td><code>(∀ c in Creatures) P(c)</code></td><td>Introduce an arbitrary creature with <code>Pretend Bob is a Creature</code>.</td></tr>
+              <tr><td><code>P → Q</code></td><td>Open a make-believe world with <code>Make believe P</code> or <code>Assume P</code>.</td></tr>
+              <tr><td><code>P ∧ Q</code></td><td>Establish both parts, then use and introduction.</td></tr>
+              <tr><td><code>P ∨ Q</code></td><td>Establish one side, then use or introduction.</td></tr>
+              <tr><td><code>(∃ c) P(c)</code></td><td>Find a particular witness, establish the required instance, then use EG.</td></tr>
+            </tbody>
+          </table>
+          <p>The Hint button follows this same strategy. It first simplifies universal and implication goals, then searches for useful instantiations and detachments.</p>
+        </section>
+
+        <section id="worlds">
+          <h2>Pretend worlds and scope</h2>
+          <p>Universal generalization, make-believe, existential instantiation, proof by cases, and proof by contradiction create temporary worlds. The editor draws vertical rails to show their nesting.</p>
+          <pre><code>Pretend Bob is a Creature.
+  Make believe S(Bob).
+    S(Bob) → M(Bob) by UI I
+    M(Bob) by detachment 2, 3
+  therefore S(Bob) → M(Bob) by MB 4
+therefore (∀ c in Creatures)(S(c) → M(c)) by UG 5</code></pre>
+          <ul>
+            <li>A line may use facts from its current world and any enclosing world.</li>
+            <li>A fact created in a world cannot be used after that world has closed.</li>
+            <li>Write introduced individuals with an uppercase first letter: <code>Bob</code>, <code>X</code>, or <code>F</code>.</li>
+            <li>Indentation is added automatically. Spaces you type are accepted, but the scope comes from the proof commands.</li>
+          </ul>
+          <p>When the current goal has been established inside a world, the checker offers a button that inserts the appropriate pop-out line.</p>
+        </section>
+
+        <section id="rules">
+          <h2>Proof-rule recipes</h2>
+          <div class="rule-grid">
+            <div class="rule">
+              <h3>Universal instantiation — UI</h3>
+              <pre><code>S(Bob) → M(Bob) by UI I</code></pre>
+              <p>Replace one or more leading universally quantified variables with specific objects.</p>
+            </div>
+            <div class="rule">
+              <h3>Detachment</h3>
+              <pre><code>M(Bob) by detachment 2, 3</code></pre>
+              <p>Cite an implication and its matching if-part. The order of the references does not matter.</p>
+            </div>
+            <div class="rule">
+              <h3>Universal generalization — UG</h3>
+              <pre><code>Pretend Bob is a Creature.
+...
+therefore (∀ c in Creatures)P(c) by UG</code></pre>
+              <p>The name must be arbitrary, and the needed instance must be proved inside that world.</p>
+            </div>
+            <div class="rule">
+              <h3>Make-believe — MB</h3>
+              <pre><code>Make believe P.
+...
+therefore P → Q by MB</code></pre>
+              <p>Assume the if-part, establish the then-part, and pop out with the implication.</p>
+            </div>
+            <div class="rule">
+              <h3>Existential rules — EI and EG</h3>
+              <pre><code>Let Ari be a witness such that P(Ari) by EI I
+...
+therefore R by EI
+
+(∃ k) 2k = N by EG 6</code></pre>
+              <p>EI opens a temporary witness world. EG concludes that a witness exists from one established instance.</p>
+            </div>
+            <div class="rule">
+              <h3>And rules</h3>
+              <pre><code>P ∧ Q by and introduction 2, 3
+P by and elimination 4</code></pre>
+              <p>Introduction joins two established statements. Elimination extracts either part of a conjunction.</p>
+            </div>
+            <div class="rule">
+              <h3>Or and proof by cases</h3>
+              <pre><code>P ∨ Q by or introduction 2
+Case 1: Make believe P by cases III
+...
+therefore R by case
+Case 2: Make believe Q by cases III
+...
+therefore R by case
+therefore R by cases III</code></pre>
+              <p>Both branches must start from the same disjunction and end with the same conclusion.</p>
+            </div>
+            <div class="rule">
+              <h3>Proof by contradiction</h3>
+              <pre><code>For contradiction assume ¬P.
+...
+Contradiction from lines 4, 7
+therefore P by contradiction</code></pre>
+              <p>A contradiction is a statement paired with its negation, or opposing comparisons such as <code>X &lt; Y</code> and <code>X ≥ Y</code>.</p>
+            </div>
+            <div class="rule">
+              <h3>De Morgan and double negation</h3>
+              <pre><code>¬P ∨ ¬Q by De Morgan 3
+P by double negation 5</code></pre>
+              <p>De Morgan converts between the recognized equivalent forms. Double negation adds or removes exactly two negations.</p>
+            </div>
+            <div class="rule">
+              <h3>Biconditionals</h3>
+              <pre><code>P ↔ Q by iff introduction 4, 8
+P → Q by iff elimination 9</code></pre>
+              <p>Introduction needs both directions. Elimination extracts either direction.</p>
+            </div>
+            <div class="rule">
+              <h3>Algebra</h3>
+              <pre><code>N^2 = 4J^2 + 4J + 1 by algebra</code></pre>
+              <p>The checker handles polynomial algebra and can substitute from available equalities.</p>
+            </div>
+            <div class="rule">
+              <h3>Restating an axiom</h3>
+              <pre><code>P by axiom II</code></pre>
+              <p>Use this when an axiom already says exactly what the proof line needs.</p>
+            </div>
+          </div>
+          <div class="callout"><strong>References are optional when the source is unambiguous.</strong> If several earlier lines could justify a move, cite the intended axiom or line numbers.</div>
+        </section>
+
+        <section id="example">
+          <h2>A complete example</h2>
+          <p><strong>Axioms</strong></p>
+          <pre><code>(∀ c in Creatures)(S(c) → M(c))
+(∀ c in Creatures)(M(c) → V(c))</code></pre>
+          <p><strong>Goal</strong></p>
+          <pre><code>(∀ c in Creatures)(S(c) → V(c))</code></pre>
+          <p><strong>Proof</strong></p>
+          <pre><code>Pretend Bob is a Creature.
+  Make believe S(Bob).
+    S(Bob) → M(Bob) by UI I
+    M(Bob) by detachment 2, 3
+    M(Bob) → V(Bob) by UI II
+    V(Bob) by detachment 4, 5
+  therefore S(Bob) → V(Bob) by MB 6
+therefore (∀ c in Creatures)(S(c) → V(c)) by UG 7</code></pre>
+          <p>The first line reduces the universal goal to a statement about arbitrary Bob. The second line reduces the implication goal to <code>V(Bob)</code>. The two UI–detachment pairs establish that goal. MB and UG then close the worlds in reverse order.</p>
+        </section>
+
+        <section id="feedback">
+          <h2>Use the compiler feedback</h2>
+          <ul>
+            <li>A green checkmark means that line compiles in its current world.</li>
+            <li>A red × means the compiler cannot justify that line. Select it to jump to the corresponding diagnostic.</li>
+            <li>The compiler stops trusting later lines after the first error, because their scopes or sources may depend on the broken line.</li>
+            <li>The gray column beside the proof shows expanded predicate definitions.</li>
+            <li>The current-goal panel tells you what remains to be established in the innermost world.</li>
+          </ul>
+          <h3>Frequent errors</h3>
+          <ul>
+            <li><strong>No available line matches:</strong> check the formula and cite the intended source.</li>
+            <li><strong>Line belongs to a closed world:</strong> that temporary fact is no longer available.</li>
+            <li><strong>Individual must begin uppercase:</strong> use <code>Bob</code>, not <code>bob</code>.</li>
+            <li><strong>Cannot infer references:</strong> add the axiom or line numbers after the rule name.</li>
+            <li><strong>Goal is not complete:</strong> establish the displayed goal and then close the current world.</li>
+          </ul>
+        </section>
+
+        <section id="notation">
+          <h2>Notation and typing shortcuts</h2>
+          <table>
+            <thead><tr><th>Type</th><th>Becomes</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><code>\forall</code></td><td><code>∀</code></td><td>for every</td></tr>
+              <tr><td><code>\exists</code></td><td><code>∃</code></td><td>there exists</td></tr>
+              <tr><td><code>\neg</code> or <code>\not</code></td><td><code>¬</code></td><td>not</td></tr>
+              <tr><td><code>/\</code> or <code>and</code></td><td><code>∧</code></td><td>and</td></tr>
+              <tr><td><code>\/</code> or <code>or</code></td><td><code>∨</code></td><td>or</td></tr>
+              <tr><td><code>-&gt;</code></td><td><code>→</code></td><td>implies</td></tr>
+              <tr><td><code>&lt;-&gt;</code></td><td><code>↔</code></td><td>if and only if</td></tr>
+              <tr><td><code>&lt;=</code></td><td><code>≤</code></td><td>less than or equal to</td></tr>
+              <tr><td><code>&gt;=</code></td><td><code>≥</code></td><td>greater than or equal to</td></tr>
+            </tbody>
+          </table>
+          <p>Periods at the ends of proof commands are optional. Pressing <kbd>Space</kbd> after a completed shortcut performs the conversion while you type.</p>
+        </section>
+      </article>
+    </div>
+
+    <footer><a href="proof-checker-pro.html">Open Proof Checker Pro</a></footer>
+  </main>
+</body>
+</html>

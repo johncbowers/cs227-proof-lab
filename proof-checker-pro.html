@@ -43,8 +43,11 @@
 
     .shell { width: min(1440px, calc(100% - 2rem)); margin: 0 auto; padding: .7rem 0 2rem; }
     .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .55rem; }
+    .top-links { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem 1rem; }
     .back { color: #c8d4e8; text-decoration: none; font-weight: 750; }
     .back:hover, .back:focus-visible { color: white; text-decoration: underline; }
+    .guide-link { color: #e9d5ff; text-decoration: none; font-weight: 800; }
+    .guide-link:hover, .guide-link:focus-visible { color: white; text-decoration: underline; }
     .mode { color: var(--purple); font: 800 .8rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; }
 
     .heading { display: flex; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: .65rem; }
@@ -195,7 +198,10 @@
 <body>
   <main class="shell">
     <nav class="topbar" aria-label="Proof tools">
-      <a class="back" href="index.html">← All proof tools</a>
+      <div class="top-links">
+        <a class="back" href="index.html">← All proof tools</a>
+        <a class="guide-link" href="proof-checker-pro-guide.html">How-to guide</a>
+      </div>
       <span class="mode">compiler mode</span>
     </nav>
 
