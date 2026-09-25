@@ -1,0 +1,66 @@
+name: Deploy main and development sites
+
+on:
+  push:
+    branches:
+      - main
+      - development
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          path: main-site
+
+      - name: Check out development
+        uses: actions/checkout@v6
+        with:
+          ref: development
+          path: development-site
+
+      - name: Assemble the combined site
+        run: |
+          mkdir -p published/development
+
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            main-site/ published/
+
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            development-site/ published/development/
+
+          touch published/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload the combined site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: published
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
