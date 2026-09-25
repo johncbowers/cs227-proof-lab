@@ -260,7 +260,9 @@ FAM(c) = (∀ d in Creatures)(M(d) → F(c, d))</textarea>
             <li><code>therefore S(Bob) → V(Bob) by MB 6</code> closes a make-believe world.</li>
             <li><code>therefore (∀ c in Creatures)(S(c) → V(c)) by UG 7</code> closes an arbitrary-object world.</li>
             <li><code>Pretend Ari is a witness with P(Ari) by EI I</code> opens an existential-witness world.</li>
-            <li><code>Case 1: Make believe P by cases III</code> opens one branch of a proof by cases.</li>
+            <li><code>Case 1: Make believe P by cases III</code> opens the first branch of a proof by cases. Nested branches may use labels such as <code>Case 1a</code> and <code>Case 1b</code>.</li>
+            <li>After establishing the goal in a branch, <code>therefore R by case</code> finishes that branch. Finish Case 1a before beginning Case 1b.</li>
+            <li>After both sibling branches are finished, <code>therefore R by cases III</code> combines them; the checker finds the two matching branch conclusions.</li>
           </ul>
           <p>Compiler convention: quantified variables and definition parameters begin lowercase; introduced individuals such as <code>Bob</code> begin uppercase. A quantifier may omit its type when the surrounding proof determines it; two explicitly different types still conflict.</p>
           <p>Several variables may share a quantifier, as in <code>(∀ x, y)(x &lt; y → F(x) &lt; F(y))</code>. Function terms may be nested, as in <code>F(G(x))</code>. Definitions may have several parameters, as in <code>Between(x, y, z)</code>.</p>
@@ -777,6 +779,23 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         return names;
       }
 
+      function caseLabelInfo(label) {
+        const normalized = String(label || "").trim().toLowerCase();
+        if (normalized === "left") return { label: "left", side: "left", family: "" };
+        if (normalized === "right") return { label: "right", side: "right", family: "" };
+        if (normalized === "1") return { label: "1", side: "left", family: "" };
+        if (normalized === "2") return { label: "2", side: "right", family: "" };
+        const nested = normalized.match(/^([12])([ab])$/);
+        if (nested) return { label: `${nested[1]}${nested[2]}`, side: nested[2] === "a" ? "left" : "right", family: nested[1] };
+        throw new Error("Use Case 1 and Case 2, or use Case 1a/1b and Case 2a/2b for nested cases.");
+      }
+
+      function caseHeaderInfo(text) {
+        const match = String(text || "").trim().match(/^Case\s+([A-Za-z0-9]+)\s*:/i);
+        if (!match) return null;
+        try { return caseLabelInfo(match[1]); } catch { return null; }
+      }
+
       function parseCommand(raw) {
         const clean = stripPeriod(convertShorthand(raw));
         const nameList = "[A-Za-z][A-Za-z0-9_]*(?:\\s*,\\s*[A-Za-z][A-Za-z0-9_]*)*";
@@ -802,8 +821,11 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           if (reason.rule !== "ei") throw new Error("A witness world must begin with ‘by EI’.");
           return { kind: "ei_open", witness: match[1], ...parseFormulaPair(match[2]), refsText: reason.refsText };
         }
-        match = clean.match(/^Case\s+(1|2|left|right)\s*:\s*(?:Make\s+believe\s+)?(.+?)\s+by\s+(?:cases|case)\s+(.+)$/i);
-        if (match) return { kind: match[1].toLowerCase() === "1" || match[1].toLowerCase() === "left" ? "case_left" : "case_right", ...parseFormulaPair(match[2]), refsText: match[3] };
+        match = clean.match(/^Case\s+([A-Za-z0-9]+)\s*:\s*(?:Make\s+believe\s+)?(.+?)\s+by\s+(?:cases|case)\s+(.+)$/i);
+        if (match) {
+          const info = caseLabelInfo(match[1]);
+          return { kind: info.side === "left" ? "case_left" : "case_right", caseLabel: info.label, caseFamily: info.family, ...parseFormulaPair(match[2]), refsText: match[3] };
+        }
         const byIndex = clean.toLowerCase().lastIndexOf(" by ");
         if (byIndex < 0) throw new Error("A derived statement needs ‘by’ followed by a proof rule.");
         const statement = clean.slice(0, byIndex).replace(/^(?:∴|therefore\b)\s*/i, "").trim();
@@ -833,6 +855,27 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         return matches;
       }
       function labelList(values) { return values.map(value => value.ref).join(", "); }
+
+      function completeCaseRefs(given, ast, sources, path) {
+        const suppliedDisjunctions = given.filter(source => source.ast?.type === "or" && !source.meta?.caseSummary);
+        const disjunctions = suppliedDisjunctions.length
+          ? suppliedDisjunctions
+          : accessibleSources(sources, path).filter(source => source.ast.type === "or" && !source.meta?.caseSummary);
+        const suppliedSummaries = given.filter(source => source.meta?.caseSummary);
+        const availableSummaries = [...sources.values()].filter(source => source.meta?.caseSummary && isPrefix(source.scopePath || [], path));
+        const matches = [];
+        disjunctions.forEach(disjunction => {
+          const summaries = [...new Map([...suppliedSummaries, ...availableSummaries]
+            .filter(source => source.meta.disjunctionRef === disjunction.ref && sameFormula(source.ast, ast))
+            .map(source => [source.ref, source])).values()];
+          const left = summaries.filter(source => source.meta.side === "left");
+          const right = summaries.filter(source => source.meta.side === "right");
+          left.forEach(leftSummary => right.forEach(rightSummary => matches.push([disjunction, leftSummary, rightSummary])));
+        });
+        if (!matches.length) throw new Error("Finish both branches with the same conclusion before applying proof by cases.");
+        if (matches.length > 1) throw new Error("More than one pair of finished cases could justify this line. Cite the disjunction and both finished case lines.");
+        return matches[0];
+      }
 
       function inferRefs(rule, ast, sources, path, top) {
         const pool = accessibleSources(sources, path);
@@ -924,7 +967,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         if (rule === "case_close") {
           if (!top || top.type !== "case") throw new Error("There is no open case to finish.");
           if (refs.length !== 1 || !sameFormula(refs[0].ast, ast) || !refs[0].scopePath.includes(top.id)) throw new Error("The result must have been established inside this case.");
-          return `finished ${top.side} case`;
+          return `finished Case ${top.caseLabel}`;
         }
         if (rule === "cases") {
           if (refs.length !== 3) throw new Error("Proof by cases needs the disjunction and the two finished case lines.");
@@ -1008,8 +1051,8 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         if (!rule) return null;
         return {
           line: `therefore ${statement} by ${rule} ${source.ref}`,
-          message: top.type === "case" ? "✓ Current goal met in this case." : "✓ Current goal met in this pretend world.",
-          button: top.type === "case" ? "Add case-closing line" : "Add pop-out line"
+          message: top.type === "case" ? `✓ Current goal met in Case ${top.caseLabel}.` : "✓ Current goal met in this pretend world.",
+          button: top.type === "case" ? `Finish Case ${top.caseLabel}` : "Add pop-out line"
         };
       }
 
@@ -1294,19 +1337,24 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       }
       function worldsOpened(line) {
         const text = line.trim();
-        if (/^Make\s+believe\b/i.test(text) || /^Assume\b/i.test(text) || /^Case\s+(?:1|2|left|right)\s*:/i.test(text)) return 1;
+        if (/^Make\s+believe\b/i.test(text) || /^Assume\b/i.test(text) || caseHeaderInfo(text)) return 1;
         const arbitrary = text.match(/^(?:Pretend|Let)\s+([A-Za-z][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_]*)*)\s+(?:is|are|be)\b/i);
         return arbitrary ? arbitrary[1].split(",").length : 0;
       }
 
       function proofLayout(lines) {
-        let depth = 0;
+        const stack = [];
         return lines.map(line => {
           const trimmed = line.trim();
-          if (!trimmed || /^(?:#|\/\/)/.test(trimmed)) return { depth, trimmed, blank: true };
+          if (!trimmed || /^(?:#|\/\/)/.test(trimmed)) return { depth: stack.length, trimmed, blank: true };
           const closes = isWorldCloser(trimmed);
-          const lineDepth = closes ? Math.max(0, depth - 1) : depth;
-          depth = Math.max(0, depth + worldsOpened(trimmed) - (closes ? 1 : 0));
+          if (closes) stack.pop();
+          const caseInfo = caseHeaderInfo(trimmed);
+          const top = stack[stack.length - 1];
+          if (caseInfo?.side === "right" && top?.type === "case" && top.side === "left" && top.family === caseInfo.family) stack.pop();
+          const lineDepth = stack.length;
+          if (caseInfo) stack.push({ type: "case", side: caseInfo.side, family: caseInfo.family });
+          else for (let count = worldsOpened(trimmed); count > 0; count -= 1) stack.push({ type: "world" });
           return { depth: lineDepth, trimmed, blank: false };
         });
       }
@@ -1471,22 +1519,27 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
               const refs = resolveRefs(command.refsText, proofLine, sources, pathBefore);
               if (refs.length !== 1 || refs[0].ast.type !== "or") throw new Error("Beginning a case needs one reference to a disjunction.");
               const side = command.kind === "case_left" ? "left" : "right";
+              if (side === "right" && top?.type === "case" && top.side === "left" && top.disjunctionRef === refs[0].ref && top.caseFamily === command.caseFamily) {
+                const target = currentGoalState(goalSurface, goal, scopes);
+                throw new Error(`Finish Case ${top.caseLabel} before starting Case ${command.caseLabel}. Establish ${formatFormula(target.surface || target.expanded)}, then close the branch with “therefore ${formatFormula(target.surface || target.expanded)} by case”.`);
+              }
               if (!sameFormula(ast, refs[0].ast[side])) throw new Error(`The ${side} case must assume ${formatFormula(refs[0].ast[side])}.`);
-              const scope = { id: `scope-${++scopeCounter}`, type: "case", side, assumption: ast, surfaceAssumption: surfaceAst, disjunctionRef: refs[0].ref, label: `${side} case: ${formatFormula(surfaceAst || ast)}` };
+              const scope = { id: `scope-${++scopeCounter}`, type: "case", side, caseLabel: command.caseLabel, caseFamily: command.caseFamily, assumption: ast, surfaceAssumption: surfaceAst, disjunctionRef: refs[0].ref, label: `Case ${command.caseLabel}: ${formatFormula(surfaceAst || ast)}` };
               scopes.push(scope);
               sourcePath = scopes.map(x => x.id);
-              meta = { opening: "case" };
-              message = `opened the ${side} case from ${refs[0].ref}`;
+              meta = { opening: "case", caseLabel: command.caseLabel };
+              message = `opened Case ${command.caseLabel} from ${refs[0].ref}`;
             } else {
               let refs = resolveRefs(command.refsText, proofLine, sources, pathBefore, command.rule === "cases");
-              if (!refs.length) refs = inferRefs(command.rule, ast, sources, pathBefore, top);
+              if (command.rule === "cases") refs = completeCaseRefs(refs, ast, sources, pathBefore);
+              else if (!refs.length) refs = inferRefs(command.rule, ast, sources, pathBefore, top);
               message = validateRule(command.rule, ast, refs, { top, sources, path: pathBefore });
               if (["mb", "ug", "ei", "case_close"].includes(command.rule)) {
                 const closed = scopes.pop();
                 sourcePath = scopes.map(x => x.id);
                 if (command.rule === "case_close") {
                   usable = false;
-                  meta = { caseSummary: true, side: closed.side, disjunctionRef: closed.disjunctionRef };
+                  meta = { caseSummary: true, side: closed.side, caseLabel: closed.caseLabel, caseFamily: closed.caseFamily, disjunctionRef: closed.disjunctionRef };
                 }
               }
             }
