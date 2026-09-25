@@ -168,16 +168,19 @@ end</code></pre>
     by definition of count</code></pre>
           <h3>Structural induction</h3>
           <pre><code>Induct on t
-  Case Leaf
+  BaseCase Leaf
     ...
   therefore P(Leaf) by induction case
 
-  Case Branch(Left, Right)
+  InductiveCase Branch(Left, Right)
+    For induction assume:
+      P(Left)
+      P(Right)
     ...
   therefore P(Branch(Left, Right)) by induction case
 
 therefore (∀ t in BinaryTrees)P(t) by induction</code></pre>
-          <p>The checker creates one case for each constructor and one induction hypothesis for each recursive constructor field. In the branch case above, the hypotheses are named <code>IH-LEFT</code> and <code>IH-RIGHT</code>. They appear in the proof-world display and can be cited like axioms or proof lines.</p>
+          <p>Use <code>BaseCase</code> for a constructor with no recursive parts and <code>InductiveCase</code> for a constructor with one or more recursive parts. The first line of every inductive case must be <code>For induction assume:</code>. Then state the original theorem once for each immediate recursive part. The checker verifies each hypothesis instead of supplying it, and each correct hypothesis becomes a numbered proof line that can be cited later.</p>
           <div class="callout"><strong>Current boundary:</strong> a recursive definition has one structural argument. Mutual recursion and parameterized types such as <code>List&lt;A&gt;</code> are not yet supported.</div>
         </section>
 

@@ -272,7 +272,8 @@ FAM(c) = (∀ d in Creatures)(M(d) → F(c, d))</textarea>
           <ul>
             <li>Declare an inductive type with <code>inductive BinaryTree</code>, one constructor per line, and <code>end</code>. Constructor fields use forms such as <code>Branch(left: BinaryTree, right: BinaryTree)</code>.</li>
             <li>Define a structurally recursive function with <code>recursive count(tree: BinaryTree): Natural</code>, one constructor equation per line, and <code>end</code>. Use <code>by definition of count</code> to unfold one equation in a proof.</li>
-            <li><code>Induct on t</code> begins structural induction for a universal goal over a declared inductive type. Open cases with <code>Case Leaf</code> or <code>Case Branch(Left, Right)</code>; recursive fields receive references such as <code>IH-LEFT</code>.</li>
+            <li><code>Induct on t</code> begins structural induction for a universal goal over a declared inductive type. Open a nonrecursive constructor with <code>BaseCase Leaf</code> and a recursive constructor with <code>InductiveCase Branch(Left, Right)</code>.</li>
+            <li>Immediately after an inductive case, write <code>For induction assume:</code>, followed by exactly one induction hypothesis for each immediate recursive part. The hypotheses become numbered proof lines.</li>
             <li>Close a constructor case with <code>therefore P(Branch(Left, Right)) by induction case</code>. After every constructor is complete, close with <code>therefore (∀ t in BinaryTrees)P(t) by induction</code>.</li>
             <li><code>Pretend Bob is a Creature</code> or <code>Let Bob be an arbitrary Creature</code> opens an arbitrary-object world.</li>
             <li><code>Pretend X, Y are Numbers</code> or <code>Let X, Y be arbitrary Numbers</code> opens several arbitrary-object worlds at once.</li>
@@ -1296,7 +1297,6 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       }
 
       function suggestedInductionCase(constructor) {
-        if (!constructor.fields.length) return `Case ${constructor.name}`;
         const used = new Set();
         const names = constructor.fields.map(field => {
           const base = field.name.charAt(0).toUpperCase() + field.name.slice(1);
@@ -1305,7 +1305,8 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           used.add(candidate);
           return candidate;
         });
-        return `Case ${constructor.name}(${names.join(", ")})`;
+        const term = constructor.fields.length ? `${constructor.name}(${names.join(", ")})` : constructor.name;
+        return `${constructor.recursiveFields.length ? "InductiveCase" : "BaseCase"} ${term}`;
       }
 
       function parseDefinitions() {
@@ -1412,8 +1413,11 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         const nameList = "[A-Za-z][A-Za-z0-9_]*(?:\\s*,\\s*[A-Za-z][A-Za-z0-9_]*)*";
         let match = clean.match(/^Induct(?:ion)?\s+on\s+([a-z][A-Za-z0-9_]*)$/i);
         if (match) return { kind: "induction_open", variable: match[1] };
+        match = clean.match(/^(BaseCase|InductiveCase)\s*:?[\s]+([A-Z][A-Za-z0-9_]*(?:\s*\(.*\))?)\s*:?$/i);
+        if (match) return { kind: "induction_case", caseKind: match[1].toLowerCase() === "basecase" ? "base" : "inductive", termText: match[2] };
         match = clean.match(/^Case\s+([A-Z][A-Za-z0-9_]*(?:\s*\(.*\))?)\s*:?$/);
-        if (match) return { kind: "induction_case", termText: match[1] };
+        if (match) return { kind: "legacy_induction_case", termText: match[1] };
+        if (/^For\s+induction\s+assume\s*:?$/i.test(clean)) return { kind: "induction_hypotheses_open" };
         match = clean.match(new RegExp(`^Pretend\\s+(${nameList})\\s+(is|are)\\s+(?:an?\\s+)?(?:arbitrary\\s+)?([A-Za-z][A-Za-z0-9_]*)$`, "i"));
         if (match) {
           const names = parseArbitraryNames(match[1]);
@@ -1460,7 +1464,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           return { kind: "contradiction_line", ast, surfaceAst: ast, refsText: match[1] || "" };
         }
         const byIndex = clean.toLowerCase().lastIndexOf(" by ");
-        if (byIndex < 0) throw new Error("A derived statement needs ‘by’ followed by a proof rule.");
+        if (byIndex < 0) return { kind: "bare_statement", ...parseFormulaPair(clean) };
         const statement = clean.slice(0, byIndex).replace(/^(?:∴|therefore\b)\s*/i, "").trim();
         if (!statement) throw new Error("Put a statement before ‘by’.");
         const reason = parseReason(clean.slice(byIndex + 4));
@@ -1633,6 +1637,8 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         if (rule === "definition") return validateDefinitionMove(ast, refs, command.definitionName);
         if (rule === "induction_case") {
           if (!top || top.type !== "induction_case") throw new Error("There is no open constructor case to finish.");
+          const unstated = top.requiredHypotheses.filter(hypothesis => !hypothesis.statedRef);
+          if (unstated.length) throw new Error(`State the induction ${unstated.length === 1 ? "hypothesis" : "hypotheses"} for ${unstated.map(hypothesis => hypothesis.objectName).join(", ")} before finishing this case.`);
           if (!sameFormula(ast, top.caseGoal)) throw new Error(`This constructor case must conclude ${formatFormula(top.caseGoal)}.`);
           if (refs.length !== 1 || !sameFormula(refs[0].ast, top.caseGoal) || !refs[0].scopePath.includes(top.id)) throw new Error(`Establish ${formatFormula(top.caseGoal)} inside this constructor case first.`);
           return `finished the ${top.constructor.name} induction case`;
@@ -1947,6 +1953,17 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         const surface = target.surface;
         const path = scopes.map(scope => scope.id);
         const top = scopes[scopes.length - 1];
+        if (top?.type === "induction_case" && top.requiredHypotheses.length) {
+          if (!top.hypothesisBlockOpened) return {
+            strategy: `An inductive case begins by identifying what may be assumed about each immediate recursive part of ${top.termText}.`,
+            line: "For induction assume:"
+          };
+          const missing = top.requiredHypotheses.filter(hypothesis => !hypothesis.statedRef);
+          if (missing.length) return {
+            strategy: `State the original theorem with ${missing[0].objectName} in place of the object being inducted on. The checker will verify your statement.`,
+            line: ""
+          };
+        }
         if (top?.type === "induction") {
           const completed = new Set([...sources.values()].filter(source => source.meta?.inductionCaseSummary && source.meta.inductionId === top.id).map(source => source.meta.constructorName));
           const next = top.typeDef.constructors.find(constructor => !completed.has(constructor.name));
@@ -2035,14 +2052,27 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           }
           line.append(scope.label);
           els.worlds.append(line);
-          (scope.hypotheses || []).forEach(hypothesis => {
-            const item = document.createElement("span");
-            item.className = "world-line";
-            item.style.setProperty("--depth", index + 1);
+          if (scope.requiredHypotheses?.length) {
+            const heading = document.createElement("span");
+            heading.className = "world-line";
+            heading.style.setProperty("--depth", index + 1);
             const rail = document.createElement("span");
             rail.className = "world-rail";
             rail.textContent = "↳ ";
-            item.append(rail, `${hypothesis.ref}: ${formatFormula(hypothesis.ast)}`);
+            heading.append(rail, "induction hypotheses:");
+            els.worlds.append(heading);
+          }
+          (scope.requiredHypotheses || []).forEach(hypothesis => {
+            const item = document.createElement("span");
+            item.className = "world-line";
+            item.style.setProperty("--depth", index + 2);
+            const rail = document.createElement("span");
+            rail.className = "world-rail";
+            rail.textContent = "↳ ";
+            const status = hypothesis.statedRef
+              ? `line ${hypothesis.statedRef}: ${formatFormula(hypothesis.surfaceAst || hypothesis.ast)}`
+              : "not yet stated";
+            item.append(rail, `${hypothesis.objectName} — ${status}`);
             els.worlds.append(item);
           });
         });
@@ -2110,27 +2140,47 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       function worldsOpened(line) {
         const text = line.trim();
         if (/^Induct(?:ion)?\s+on\s+[a-z][A-Za-z0-9_]*[.;]?$/i.test(text)) return 1;
-        if (/^Case\s+[A-Z][A-Za-z0-9_]*(?:\s*\(.*\))?\s*[:.;]?$/.test(text)) return 1;
         if (/^For\s+contradiction\b/i.test(text)) return 1;
         if (/^Make\s+believe\b/i.test(text) || /^Assume\b/i.test(text) || caseHeaderInfo(text)) return 1;
         const arbitrary = text.match(/^(?:Pretend|Let)\s+([A-Za-z][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_]*)*)\s+(?:is|are|be)\b/i);
         return arbitrary ? arbitrary[1].split(",").length : 0;
       }
 
+      function inductionCaseHeaderInfo(text) {
+        const match = String(text || "").trim().match(/^(BaseCase|InductiveCase)\s*:?\s+([A-Z][A-Za-z0-9_]*)/i);
+        if (!match) return null;
+        const constructor = constructors.get(match[2]);
+        return {
+          kind: match[1].toLowerCase() === "basecase" ? "base" : "inductive",
+          hypothesisCount: constructor?.recursiveFields?.length || 0
+        };
+      }
+
       function proofLayout(lines) {
         const stack = [];
         return lines.map(line => {
           const trimmed = line.trim();
-          if (!trimmed || /^(?:#|\/\/)/.test(trimmed)) return { depth: stack.length, trimmed, blank: true };
+          if (!trimmed || /^(?:#|\/\/)/.test(trimmed)) return { depth: stack.length, afterDepth: stack.length, trimmed, blank: true };
+          const activeBlock = stack[stack.length - 1];
+          if (activeBlock?.type === "induction_hypotheses") {
+            const lineDepth = stack.length;
+            activeBlock.remaining -= 1;
+            if (activeBlock.remaining <= 0) stack.pop();
+            return { depth: lineDepth, afterDepth: stack.length, trimmed, blank: false };
+          }
           const closes = isWorldCloser(trimmed);
           if (closes) stack.pop();
           const caseInfo = caseHeaderInfo(trimmed);
           const top = stack[stack.length - 1];
           if (caseInfo?.side === "right" && top?.type === "case" && top.side === "left" && top.family === caseInfo.family) stack.pop();
           const lineDepth = stack.length;
+          const inductionInfo = inductionCaseHeaderInfo(trimmed);
           if (caseInfo) stack.push({ type: "case", side: caseInfo.side, family: caseInfo.family });
-          else for (let count = worldsOpened(trimmed); count > 0; count -= 1) stack.push({ type: "world" });
-          return { depth: lineDepth, trimmed, blank: false };
+          else if (inductionInfo) stack.push({ type: "induction_case", ...inductionInfo });
+          else if (/^For\s+induction\s+assume\s*[:.;]?$/i.test(trimmed) && top?.type === "induction_case" && top.hypothesisCount) {
+            stack.push({ type: "induction_hypotheses", remaining: top.hypothesisCount });
+          } else for (let count = worldsOpened(trimmed); count > 0; count -= 1) stack.push({ type: "world" });
+          return { depth: lineDepth, afterDepth: stack.length, trimmed, blank: false };
         });
       }
 
@@ -2275,7 +2325,49 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
             let meta = {};
             let message = "";
 
-            if (command.kind === "induction_open") {
+            if (command.kind === "legacy_induction_case") {
+              if (top?.type === "induction") {
+                const data = inductionCaseData(top.typeDef, command.termText);
+                const keyword = data.constructor.recursiveFields.length ? "InductiveCase" : "BaseCase";
+                throw new Error(`Label this constructor with “${keyword} ${data.termText}”.`);
+              }
+              throw new Error("A constructor case belongs immediately inside an open structural induction.");
+            }
+
+            if (top?.type === "induction_case" && top.requiredHypotheses.length) {
+              if (!top.hypothesisBlockOpened && command.kind !== "induction_hypotheses_open") {
+                throw new Error(`The first line of the ${top.constructor.name} inductive case must be “For induction assume:”.`);
+              }
+              const missingHypotheses = top.requiredHypotheses.filter(hypothesis => !hypothesis.statedRef);
+              if (top.hypothesisBlockOpened && missingHypotheses.length && command.kind !== "bare_statement") {
+                throw new Error(`State the induction ${missingHypotheses.length === 1 ? "hypothesis" : "hypotheses"} for ${missingHypotheses.map(hypothesis => hypothesis.objectName).join(", ")} before making another proof move.`);
+              }
+            }
+
+            if (command.kind === "induction_hypotheses_open") {
+              if (!top || top.type !== "induction_case") throw new Error("“For induction assume:” belongs immediately after an inductive-case line.");
+              if (!top.requiredHypotheses.length) throw new Error(`The ${top.constructor.name} case is a base case, so it has no induction hypotheses.`);
+              if (top.hypothesisBlockOpened) throw new Error("The induction-hypothesis block is already open.");
+              top.hypothesisBlockOpened = true;
+              ast = null;
+              usable = false;
+              meta = { opening: "induction_hypotheses" };
+              message = `ready for ${top.requiredHypotheses.length} induction ${top.requiredHypotheses.length === 1 ? "hypothesis" : "hypotheses"}`;
+            } else if (command.kind === "bare_statement") {
+              if (!top || top.type !== "induction_case" || !top.hypothesisBlockOpened) throw new Error("A derived statement needs ‘by’ followed by a proof rule.");
+              const duplicate = top.requiredHypotheses.find(hypothesis => hypothesis.statedRef && sameFormula(hypothesis.ast, ast));
+              if (duplicate) throw new Error(`The induction hypothesis for ${duplicate.objectName} was already stated on line ${duplicate.statedRef}.`);
+              const expected = top.requiredHypotheses.find(hypothesis => !hypothesis.statedRef && sameFormula(hypothesis.ast, ast));
+              if (!expected) {
+                const missing = top.requiredHypotheses.filter(hypothesis => !hypothesis.statedRef);
+                if (!missing.length) throw new Error("All required induction hypotheses have been stated. A derived statement now needs ‘by’ followed by a proof rule.");
+                throw new Error(`This is not a required induction hypothesis. State the theorem for ${missing.map(hypothesis => hypothesis.objectName).join(" or ")}.`);
+              }
+              expected.statedRef = String(proofLine);
+              meta = { inductionHypothesis: true, objectName: expected.objectName };
+              message = `stated the induction hypothesis for ${expected.objectName}`;
+              top.hypotheses.push({ ref: String(proofLine), ast: surfaceAst || ast, objectName: expected.objectName });
+            } else if (command.kind === "induction_open") {
               const target = currentGoalState(goalSurface, goal, scopes);
               if (target.expanded?.type !== "forall") throw new Error("Structural induction must begin when the current goal is universal.");
               if (target.expanded.variable.toLowerCase() !== command.variable.toLowerCase()) throw new Error(`The current goal quantifies ${target.expanded.variable}, not ${command.variable}.`);
@@ -2298,6 +2390,9 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
             } else if (command.kind === "induction_case") {
               if (!top || top.type !== "induction") throw new Error("A constructor case must come immediately inside an open structural induction.");
               const data = inductionCaseData(top.typeDef, command.termText);
+              const isBaseCase = data.constructor.recursiveFields.length === 0;
+              if (command.caseKind === "base" && !isBaseCase) throw new Error(`${data.constructor.name} contains recursive ${top.typeDef.name} parts, so open it with “InductiveCase ${data.termText}”.`);
+              if (command.caseKind === "inductive" && isBaseCase) throw new Error(`${data.constructor.name} has no recursive ${top.typeDef.name} parts, so open it with “BaseCase ${data.termText}”.`);
               const completed = new Set([...sources.values()].filter(source => source.meta?.inductionCaseSummary && source.meta.inductionId === top.id).map(source => source.meta.constructorName));
               if (completed.has(data.constructor.name)) throw new Error(`The ${data.constructor.name} induction case is already complete.`);
               for (const name of data.names) {
@@ -2318,32 +2413,28 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
                 caseSurface,
                 caseGoal,
                 hypotheses: [],
-                label: `${data.constructor.name} case: ${data.termText}`
+                requiredHypotheses: [],
+                hypothesisBlockOpened: false,
+                caseKind: isBaseCase ? "base" : "inductive",
+                label: `${isBaseCase ? "base" : "inductive"} case: ${data.termText}`
               };
-              scopes.push(caseScope);
-              sourcePath = scopes.map(x => x.id);
-              usable = false;
-              meta = { opening: "induction_case", constructorName: data.constructor.name };
               data.constructor.fields.forEach((field, fieldIndex) => {
                 if (!sameType(field.type, top.typeDef.name)) return;
                 const objectName = data.names[fieldIndex];
-                const hypothesis = substitute(top.theorem.body, top.theorem.variable, objectName);
-                const hypothesisSurface = substitute(top.theoremSurface.body, top.theoremSurface.variable, objectName);
-                const ref = `IH-${objectName.toUpperCase()}`;
-                sources.set(ref, {
-                  ref,
-                  label: `Induction hypothesis for ${objectName}`,
-                  ast: hypothesis,
-                  surfaceAst: hypothesisSurface,
-                  scopePath: sourcePath,
-                  axiom: false,
-                  line: 0,
-                  usable: true,
-                  meta: { inductionHypothesis: true, objectName }
+                caseScope.requiredHypotheses.push({
+                  objectName,
+                  ast: substitute(top.theorem.body, top.theorem.variable, objectName),
+                  surfaceAst: substitute(top.theoremSurface.body, top.theoremSurface.variable, objectName),
+                  statedRef: null
                 });
-                caseScope.hypotheses.push({ ref, ast: hypothesisSurface || hypothesis });
               });
-              message = `opened the ${data.constructor.name} case${data.constructor.recursiveFields.length ? ` with ${data.constructor.recursiveFields.length} induction ${data.constructor.recursiveFields.length === 1 ? "hypothesis" : "hypotheses"}` : ""}`;
+              scopes.push(caseScope);
+              sourcePath = scopes.map(x => x.id);
+              usable = false;
+              meta = { opening: "induction_case", constructorName: data.constructor.name, caseKind: caseScope.caseKind };
+              message = isBaseCase
+                ? `opened the ${data.constructor.name} base case`
+                : `opened the ${data.constructor.name} inductive case; state ${caseScope.requiredHypotheses.length} induction ${caseScope.requiredHypotheses.length === 1 ? "hypothesis" : "hypotheses"} next`;
             } else if (command.kind === "ug_open") {
               for (const name of command.names) {
                 const used = scopes.some(scope => scope.name === name || scope.witness === name)
@@ -2512,7 +2603,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           const lines = els.source.value.split("\n");
           const item = proofLayout(lines)[lineIndex] || { depth: 0 };
           const current = lines[lineIndex] || "";
-          const nextDepth = item.depth + worldsOpened(current);
+          const nextDepth = item.afterDepth ?? (item.depth + worldsOpened(current));
           els.source.setRangeText(`\n${"  ".repeat(nextDepth)}`, start, end, "end");
           updateNumbers(); scheduleCompile();
         }
@@ -2601,7 +2692,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         els.definitions.value = "";
         els.axioms.value = "";
         els.goal.value = "(∀ t in BinaryTrees)(leaves(t) = internal(t) + 1)";
-        els.source.value = "Induct on t\n  Case Leaf\n    leaves(Leaf) = 1 by definition of leaves\n    internal(Leaf) = 0 by definition of internal\n    leaves(Leaf) = internal(Leaf) + 1 by algebra 3, 4\n  therefore leaves(Leaf) = internal(Leaf) + 1 by induction case 5\n  Case Branch(Left, Right)\n    leaves(Branch(Left, Right)) = leaves(Left) + leaves(Right) by definition of leaves\n    internal(Branch(Left, Right)) = internal(Left) + internal(Right) + 1 by definition of internal\n    leaves(Branch(Left, Right)) = internal(Branch(Left, Right)) + 1 by algebra IH-LEFT, IH-RIGHT, 8, 9\n  therefore leaves(Branch(Left, Right)) = internal(Branch(Left, Right)) + 1 by induction case 10\ntherefore (∀ t in BinaryTrees)(leaves(t) = internal(t) + 1) by induction";
+        els.source.value = "Induct on t\n  BaseCase Leaf\n    leaves(Leaf) = 1 by definition of leaves\n    internal(Leaf) = 0 by definition of internal\n    leaves(Leaf) = internal(Leaf) + 1 by algebra 3, 4\n  therefore leaves(Leaf) = internal(Leaf) + 1 by induction case 5\n  InductiveCase Branch(Left, Right)\n    For induction assume:\n      leaves(Left) = internal(Left) + 1\n      leaves(Right) = internal(Right) + 1\n    leaves(Branch(Left, Right)) = leaves(Left) + leaves(Right) by definition of leaves\n    internal(Branch(Left, Right)) = internal(Left) + internal(Right) + 1 by definition of internal\n    leaves(Branch(Left, Right)) = internal(Branch(Left, Right)) + 1 by algebra 9, 10, 11, 12\n  therefore leaves(Branch(Left, Right)) = internal(Branch(Left, Right)) + 1 by induction case 13\ntherefore (∀ t in BinaryTrees)(leaves(t) = internal(t) + 1) by induction";
         updateNumbers(); updateAxiomNumbers(); compile({ announce: true });
       });
       document.getElementById("clear-proof").addEventListener("click", () => { els.source.value = ""; updateNumbers(); compile({ announce: true }); els.source.focus(); });
