@@ -260,6 +260,8 @@ FAM(c) = (∀ d in Creatures)(M(d) → F(c, d))</textarea>
             <li><code>therefore S(Bob) → V(Bob) by MB 6</code> closes a make-believe world.</li>
             <li><code>therefore (∀ c in Creatures)(S(c) → V(c)) by UG 7</code> closes an arbitrary-object world.</li>
             <li><code>Pretend Ari is a witness with P(Ari) by EI I</code> opens an existential-witness world.</li>
+            <li><code>For contradiction assume ¬P</code> opens a pretend world and changes the current goal to <strong>Contradiction</strong>. After deriving one, <code>therefore P by contradiction</code> closes the world.</li>
+            <li><code>Contradiction from lines 4, 7</code> is valid when one cited line negates the other, including complementary comparisons such as <code>X &lt; Y</code> and <code>X ≥ Y</code>.</li>
             <li><code>Case 1: Make believe P by cases III</code> opens the first branch of a proof by cases. Nested branches may use labels such as <code>Case 1a</code> and <code>Case 1b</code>.</li>
             <li>After establishing the goal in a branch, <code>therefore R by case</code> finishes that branch. Finish Case 1a before beginning Case 1b.</li>
             <li>After both sibling branches are finished, <code>therefore R by cases III</code> combines them; the checker finds the two matching branch conclusions.</li>
@@ -576,7 +578,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       function formatFormula(ast, parent = 0) {
         if (!ast) return "—";
         let text;
-        if (ast.type === "atom") text = ast.value;
+        if (ast.type === "atom") text = ast.value === "⊥" ? "Contradiction" : ast.value;
         else if (ast.type === "not") text = `¬${formatFormula(ast.value, precedence.not)}`;
         else if (ast.type === "forall" || ast.type === "exists") {
           const symbol = ast.type === "forall" ? "∀" : "∃";
@@ -604,6 +606,29 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           return a.variable === b.variable && sameType(a.domain, b.domain) && sameFormula(a.body, b.body);
         }
         return sameFormula(a.left, b.left) && sameFormula(a.right, b.right);
+      }
+      function contradictionFormula() { return { type: "atom", value: "⊥" }; }
+      function isContradictionFormula(ast) { return ast?.type === "atom" && ast.value === "⊥"; }
+      function comparisonParts(ast) {
+        if (ast?.type !== "atom") return null;
+        const match = ast.value.match(/^(.+?)\s*(≤|≥|<|>)\s*(.+)$/);
+        if (!match) return null;
+        const [, left, operator, right] = match;
+        if (operator === "<") return { lower: left.trim(), upper: right.trim(), strict: true };
+        if (operator === ">") return { lower: right.trim(), upper: left.trim(), strict: true };
+        if (operator === "≤") return { lower: left.trim(), upper: right.trim(), strict: false };
+        return { lower: right.trim(), upper: left.trim(), strict: false };
+      }
+      function areContradictory(first, second) {
+        if (first?.type === "not" && sameFormula(first.value, second)) return true;
+        if (second?.type === "not" && sameFormula(second.value, first)) return true;
+        const a = comparisonParts(first), b = comparisonParts(second);
+        if (!a || !b) return false;
+        if (a.strict && b.strict) return a.lower === b.upper && a.upper === b.lower;
+        if (a.strict === b.strict) return false;
+        const strict = a.strict ? a : b;
+        const weak = a.strict ? b : a;
+        return strict.lower === weak.upper && strict.upper === weak.lower;
       }
       function escapeRegExp(text) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
       function substitute(ast, variable, term) {
@@ -752,6 +777,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         ["ande", "and_e"], ["∧e", "and_e"], ["and elimination", "and_e"],
         ["ori", "or_i"], ["∨i", "or_i"], ["or introduction", "or_i"],
         ["case", "case_close"], ["end case", "case_close"], ["cases", "cases"], ["proof by cases", "cases"],
+        ["contradiction", "contradiction"], ["proof by contradiction", "contradiction"],
         ["de morgan", "demorgan"], ["demorgans", "demorgan"], ["double negation", "dn"], ["dn", "dn"],
         ["iff introduction", "iff_i"], ["↔i", "iff_i"], ["iffi", "iff_i"],
         ["iff elimination", "iff_e"], ["↔e", "iff_e"], ["iffe", "iff_e"]
@@ -810,6 +836,8 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         if (match) {
           return { kind: "ug_open", names: parseArbitraryNames(match[1]), domain: match[2] };
         }
+        match = clean.match(/^For\s+contradiction\s*,?\s*(assume|pretend)\s+(.+)$/i);
+        if (match) return { kind: "pbc_open", wording: match[1].toLowerCase(), ...parseFormulaPair(match[2]) };
         match = clean.match(/^Make\s+believe\s+(.+)$/i);
         if (match) return { kind: "mb_open", wording: "make believe", ...parseFormulaPair(match[1]) };
         match = clean.match(/^Assume\s+(.+)$/i);
@@ -825,6 +853,11 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         if (match) {
           const info = caseLabelInfo(match[1]);
           return { kind: info.side === "left" ? "case_left" : "case_right", caseLabel: info.label, caseFamily: info.family, ...parseFormulaPair(match[2]), refsText: match[3] };
+        }
+        match = clean.match(/^Contradiction\s+from(?:\s+lines?)?\s+(.+)$/i);
+        if (match) {
+          const ast = contradictionFormula();
+          return { kind: "contradiction_line", ast, surfaceAst: ast, refsText: match[1] };
         }
         const byIndex = clean.toLowerCase().lastIndexOf(" by ");
         if (byIndex < 0) throw new Error("A derived statement needs ‘by’ followed by a proof rule.");
@@ -891,6 +924,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         if (rule === "or_i") return unique(pool.filter(x => ast.type === "or" && (sameFormula(x.ast, ast.left) || sameFormula(x.ast, ast.right))), "Neither side of this disjunction is available.", "Or introduction has more than one possible source");
         if (rule === "demorgan") return unique(pool.filter(x => deMorganPartners(x.ast).some(y => sameFormula(y, ast))), "No available line has this De Morgan equivalent.", "De Morgan has more than one possible source");
         if (rule === "dn") return unique(pool.filter(x => (x.ast.type === "not" && x.ast.value.type === "not" && sameFormula(x.ast.value.value, ast)) || (ast.type === "not" && ast.value.type === "not" && sameFormula(ast.value.value, x.ast))), "No available line differs from this one by exactly two negations.", "Double negation has more than one possible source");
+        if (rule === "contradiction") return unique(pool.filter(x => isContradictionFormula(x.ast) && (!top || top.type !== "pbc" || x.scopePath.includes(top.id))), "No contradiction has been established in the current world.", "More than one contradiction is available");
         if (["mb", "ug", "ei", "case_close"].includes(rule) && top) {
           const target = rule === "mb" && ast.type === "imp" ? ast.right : rule === "ug" && ast.type === "forall" ? substitute(ast.body, ast.variable, top.name) : ast;
           const source = latestInScope(sources, path, top.id, x => sameFormula(x.ast, target));
@@ -922,6 +956,15 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           if (!implication || !antecedent || !sameFormula(implication.ast.left, antecedent.ast)) throw new Error("The cited sources must have the forms P → Q and P.");
           if (!sameFormula(implication.ast.right, ast)) throw new Error(`Detachment gives ${formatFormula(implication.ast.right)}, not ${formatFormula(ast)}.`);
           return `detachment from ${labelList(refs)}`;
+        }
+        if (rule === "contradiction") {
+          if (refs.length !== 1 || !isContradictionFormula(refs[0].ast)) throw new Error("This move needs one established contradiction.");
+          if (top?.type === "pbc") {
+            if (!areContradictory(top.assumption, ast)) throw new Error(`The conclusion must negate the contradiction assumption ${formatFormula(top.surfaceAssumption || top.assumption)}.`);
+            if (!refs[0].scopePath.includes(top.id)) throw new Error("The contradiction must be established inside the current contradiction world.");
+            return "proof by contradiction; pop out one level";
+          }
+          return `contradiction elimination from ${refs[0].ref}`;
         }
         if (rule === "mb") {
           if (!top || top.type !== "mb") throw new Error("There is no open make-believe world to close.");
@@ -1018,6 +1061,9 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           } else if (scope.type === "mb" && expanded?.type === "imp" && sameFormula(expanded.left, scope.assumption)) {
             expanded = expanded.right;
             surface = surface?.type === "imp" && sameFormula(expandPredicates(surface.left), scope.assumption) ? surface.right : expanded;
+          } else if (scope.type === "pbc") {
+            surface = contradictionFormula();
+            expanded = surface;
           }
         });
         return { surface, expanded };
@@ -1046,13 +1092,17 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         if (!source) return null;
         const parentTarget = currentGoalState(surfaceGoal, expandedGoal, scopes.slice(0, -1));
         const statement = formatFormula(parentTarget.surface || parentTarget.expanded);
-        const rules = { ug: "UG", mb: "MB", ei: "EI", case: "case" };
+        const rules = { ug: "UG", mb: "MB", ei: "EI", case: "case", pbc: "contradiction" };
         const rule = rules[top.type];
         if (!rule) return null;
         return {
           line: `therefore ${statement} by ${rule} ${source.ref}`,
-          message: top.type === "case" ? `✓ Current goal met in Case ${top.caseLabel}.` : "✓ Current goal met in this pretend world.",
-          button: top.type === "case" ? `Finish Case ${top.caseLabel}` : "Add pop-out line"
+          message: top.type === "case"
+            ? `✓ Current goal met in Case ${top.caseLabel}.`
+            : top.type === "pbc" ? "✓ Contradiction established in this pretend world." : "✓ Current goal met in this pretend world.",
+          button: top.type === "case"
+            ? `Finish Case ${top.caseLabel}`
+            : top.type === "pbc" ? "Finish proof by contradiction" : "Add pop-out line"
         };
       }
 
@@ -1175,6 +1225,14 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         const pool = accessibleSources(sources, path);
         const statement = formatFormula(formulaForHint(surface, target));
 
+        if (!isContradictionFormula(target)) {
+          const contradiction = pool.find(source => isContradictionFormula(source.ast));
+          if (contradiction) return {
+            strategy: "A contradiction is available, so the current goal follows by contradiction elimination.",
+            line: `${statement} by contradiction ${contradiction.ref}`
+          };
+        }
+
         const axiom = pool.find(source => source.axiom && sameFormula(source.ast, target));
         if (axiom) return { strategy: `The goal is already one of the axioms. Restate Axiom ${axiom.ref}.`, line: `${statement} by axiom ${axiom.ref}` };
 
@@ -1217,6 +1275,21 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         const expanded = target.expanded;
         const surface = target.surface;
         const path = scopes.map(scope => scope.id);
+        if (isContradictionFormula(expanded)) {
+          const pool = accessibleSources(sources, path);
+          for (let first = 0; first < pool.length; first += 1) {
+            for (let second = first + 1; second < pool.length; second += 1) {
+              if (areContradictory(pool[first].ast, pool[second].ast)) return {
+                strategy: "These two available lines contradict one another.",
+                line: `Contradiction from lines ${pool[first].ref}, ${pool[second].ref}`
+              };
+            }
+          }
+          return {
+            strategy: "To reach a contradiction, look for a statement and its negation, or for opposing order comparisons such as X < Y and X ≥ Y.",
+            line: ""
+          };
+        }
         if (expanded?.type === "forall") {
           const effectiveDomain = expanded.domain || inferredDomain(expanded.body);
           const names = [];
@@ -1333,10 +1406,11 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       }
 
       function isWorldCloser(line) {
-        return /^(?:∴|therefore)\b.*\bby\s+(?:MB|UG|EI|case)\b/i.test(line.trim());
+        return /^(?:∴|therefore)\b.*\bby\s+(?:MB|UG|EI|case|contradiction)\b/i.test(line.trim());
       }
       function worldsOpened(line) {
         const text = line.trim();
+        if (/^For\s+contradiction\b/i.test(text)) return 1;
         if (/^Make\s+believe\b/i.test(text) || /^Assume\b/i.test(text) || caseHeaderInfo(text)) return 1;
         const arbitrary = text.match(/^(?:Pretend|Let)\s+([A-Za-z][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_]*)*)\s+(?:is|are|be)\b/i);
         return arbitrary ? arbitrary[1].split(",").length : 0;
@@ -1502,6 +1576,20 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
               sourcePath = scopes.map(x => x.id);
               meta = { opening: "mb" };
               message = `assumed ${formatFormula(surfaceAst || ast)} inside a new world`;
+            } else if (command.kind === "pbc_open") {
+              const expected = currentGoalState(goalSurface, goal, scopes).expanded;
+              if (!areContradictory(ast, expected)) throw new Error(`To prove ${formatFormula(expected)} by contradiction, assume its negation.`);
+              const scope = {
+                id: `scope-${++scopeCounter}`,
+                type: "pbc",
+                assumption: ast,
+                surfaceAssumption: surfaceAst,
+                label: `for contradiction, ${command.wording} ${formatFormula(surfaceAst || ast)}`
+              };
+              scopes.push(scope);
+              sourcePath = scopes.map(x => x.id);
+              meta = { opening: "pbc" };
+              message = `opened a contradiction world by assuming ${formatFormula(surfaceAst || ast)}`;
             } else if (command.kind === "ei_open") {
               let refs = resolveRefs(command.refsText, proofLine, sources, pathBefore);
               if (!refs.length) refs = unique(accessibleSources(sources, pathBefore).filter(x => x.ast.type === "exists" && instantiationTerm(x.ast.body, ast, x.ast.variable) === command.witness), "No existential statement supports this witness assumption.", "More than one existential statement could introduce this witness");
@@ -1529,12 +1617,18 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
               sourcePath = scopes.map(x => x.id);
               meta = { opening: "case", caseLabel: command.caseLabel };
               message = `opened Case ${command.caseLabel} from ${refs[0].ref}`;
+            } else if (command.kind === "contradiction_line") {
+              const refs = resolveRefs(command.refsText, proofLine, sources, pathBefore);
+              if (refs.length !== 2) throw new Error("A contradiction line must cite exactly two earlier lines.");
+              if (!areContradictory(refs[0].ast, refs[1].ast)) throw new Error("The cited lines do not contradict one another. Use a statement with its negation, or opposing comparisons such as X < Y and X ≥ Y.");
+              message = `contradiction from ${labelList(refs)}`;
             } else {
               let refs = resolveRefs(command.refsText, proofLine, sources, pathBefore, command.rule === "cases");
               if (command.rule === "cases") refs = completeCaseRefs(refs, ast, sources, pathBefore);
               else if (!refs.length) refs = inferRefs(command.rule, ast, sources, pathBefore, top);
               message = validateRule(command.rule, ast, refs, { top, sources, path: pathBefore });
-              if (["mb", "ug", "ei", "case_close"].includes(command.rule)) {
+              const closesContradictionWorld = command.rule === "contradiction" && top?.type === "pbc";
+              if (["mb", "ug", "ei", "case_close"].includes(command.rule) || closesContradictionWorld) {
                 const closed = scopes.pop();
                 sourcePath = scopes.map(x => x.id);
                 if (command.rule === "case_close") {
