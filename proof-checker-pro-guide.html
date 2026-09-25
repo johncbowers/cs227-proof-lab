@@ -147,23 +147,23 @@ FAM(c) = (∀ d in Creatures)(M(d) → F(c, d))</code></pre>
           <p>An inductive declaration lists every way an object of a type can be constructed. Constructor names begin uppercase; constructor-field names begin lowercase.</p>
           <pre><code>inductive BinaryTree
     Leaf
-    Branch(left: BinaryTree, right: BinaryTree)
+    InternalNode(left: BinaryTree, right: BinaryTree)
 end</code></pre>
           <p>A recursive function gives exactly one equation for each constructor. Recursive calls may use only the direct recursive parts named by that constructor.</p>
           <pre><code>recursive count(tree: BinaryTree): Natural
     count(Leaf) = 1
-    count(Branch(left, right))
+    count(InternalNode(left, right))
         = count(left) + count(right) + 1
 end</code></pre>
           <p>Recursive properties use the same pattern:</p>
           <pre><code>recursive predicate Perfect(tree: BinaryTree)
     Perfect(Leaf) = True
-    Perfect(Branch(left, right))
+    Perfect(InternalNode(left, right))
         = Perfect(left) ∧ Perfect(right)
           ∧ height(left) = height(right)
 end</code></pre>
           <p>Use a definition explicitly in a proof:</p>
-          <pre><code>count(Branch(Left, Right))
+          <pre><code>count(InternalNode(Left, Right))
     = count(Left) + count(Right) + 1
     by definition of count</code></pre>
           <h3>Structural induction</h3>
@@ -172,12 +172,12 @@ end</code></pre>
     ...
   therefore P(Leaf) by induction case
 
-  InductiveCase Branch(Left, Right)
+  InductiveCase InternalNode(Left, Right)
     For induction assume:
       P(Left)
       P(Right)
     ...
-  therefore P(Branch(Left, Right)) by induction case
+  therefore P(InternalNode(Left, Right)) by induction case
 
 therefore (∀ t in BinaryTrees)P(t) by induction</code></pre>
           <p>Use <code>BaseCase</code> for a constructor with no recursive parts and <code>InductiveCase</code> for a constructor with one or more recursive parts. The first line of every inductive case must be <code>For induction assume:</code>. Then state the original theorem once for each immediate recursive part. The checker verifies each hypothesis instead of supplying it, and each correct hypothesis becomes a numbered proof line that can be cited later.</p>
