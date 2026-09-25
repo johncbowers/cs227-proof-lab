@@ -100,6 +100,7 @@
         <ol>
           <li><a href="#start">Quick start</a></li>
           <li><a href="#problem">Enter the problem</a></li>
+          <li><a href="#inductive">Inductive definitions</a></li>
           <li><a href="#workflow">Follow the goal</a></li>
           <li><a href="#worlds">Pretend worlds</a></li>
           <li><a href="#rules">Proof rules</a></li>
@@ -139,6 +140,45 @@ FAM(c) = (∀ d in Creatures)(M(d) → F(c, d))</code></pre>
           <h3>Goal</h3>
           <pre><code>(∀ c in Creatures)(S(c) → V(c))</code></pre>
           <p>The current-goal display changes whenever you enter or leave a pretend world.</p>
+        </section>
+
+        <section id="inductive">
+          <h2>Define inductive types and recursive functions</h2>
+          <p>An inductive declaration lists every way an object of a type can be constructed. Constructor names begin uppercase; constructor-field names begin lowercase.</p>
+          <pre><code>inductive BinaryTree
+    Leaf
+    Branch(left: BinaryTree, right: BinaryTree)
+end</code></pre>
+          <p>A recursive function gives exactly one equation for each constructor. Recursive calls may use only the direct recursive parts named by that constructor.</p>
+          <pre><code>recursive count(tree: BinaryTree): Natural
+    count(Leaf) = 1
+    count(Branch(left, right))
+        = count(left) + count(right) + 1
+end</code></pre>
+          <p>Recursive properties use the same pattern:</p>
+          <pre><code>recursive predicate Perfect(tree: BinaryTree)
+    Perfect(Leaf) = True
+    Perfect(Branch(left, right))
+        = Perfect(left) ∧ Perfect(right)
+          ∧ height(left) = height(right)
+end</code></pre>
+          <p>Use a definition explicitly in a proof:</p>
+          <pre><code>count(Branch(Left, Right))
+    = count(Left) + count(Right) + 1
+    by definition of count</code></pre>
+          <h3>Structural induction</h3>
+          <pre><code>Induct on t
+  Case Leaf
+    ...
+  therefore P(Leaf) by induction case
+
+  Case Branch(Left, Right)
+    ...
+  therefore P(Branch(Left, Right)) by induction case
+
+therefore (∀ t in BinaryTrees)P(t) by induction</code></pre>
+          <p>The checker creates one case for each constructor and one induction hypothesis for each recursive constructor field. In the branch case above, the hypotheses are named <code>IH-LEFT</code> and <code>IH-RIGHT</code>. They appear in the proof-world display and can be cited like axioms or proof lines.</p>
+          <div class="callout"><strong>Current boundary:</strong> a recursive definition has one structural argument. Mutual recursion and parameterized types such as <code>List&lt;A&gt;</code> are not yet supported.</div>
         </section>
 
         <section id="workflow">

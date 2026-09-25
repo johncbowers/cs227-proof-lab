@@ -81,6 +81,7 @@
     #axioms { min-height: 92px; padding: .6rem .7rem; border: 0; border-radius: 0; resize: vertical; font: .92rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     #axioms:focus { box-shadow: none; }
     #definitions { min-height: 92px; padding: .6rem .7rem; resize: vertical; font: .88rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    #inductive-types, #recursive-functions { min-height: 150px; padding: .6rem .7rem; resize: vertical; font: .88rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
     #goal { padding: .55rem .65rem; font: .92rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
     .symbol-bar { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .4rem; }
@@ -215,7 +216,7 @@
     <div class="layout">
       <section class="panel setup" aria-labelledby="problem-heading">
         <h2 id="problem-heading">Problem</h2>
-        <p class="help">Define reusable predicates, then enter one axiom per line. Roman-numeral axiom names are supplied automatically.</p>
+        <p class="help">Define predicates, inductive types, and recursive functions as needed, then enter one axiom per line. Roman-numeral axiom names are supplied automatically.</p>
 
         <div class="problem-fields">
           <div class="field">
@@ -232,6 +233,18 @@ FAM(c) = (∀ d in Creatures)(M(d) → F(c, d))</textarea>
               <textarea id="axioms" spellcheck="false" wrap="off" aria-describedby="axiom-help">(∀ c in Creatures) (S(c) → M(c))</textarea>
             </div>
             <span class="sr-only" id="axiom-help">Enter one axiom per line. The checker automatically numbers them with Roman numerals.</span>
+          </div>
+
+          <div class="field">
+            <label for="inductive-types">Inductive types</label>
+            <textarea id="inductive-types" spellcheck="false" wrap="off" aria-describedby="inductive-types-help"></textarea>
+            <span class="sr-only" id="inductive-types-help">Define inductive types with named constructors. Put each declaration between an inductive header and end.</span>
+          </div>
+
+          <div class="field">
+            <label for="recursive-functions">Recursive functions and properties</label>
+            <textarea id="recursive-functions" spellcheck="false" wrap="off" aria-describedby="recursive-functions-help"></textarea>
+            <span class="sr-only" id="recursive-functions-help">Define structurally recursive functions and predicates with one equation for each constructor.</span>
           </div>
 
           <div class="field goal-field">
@@ -257,6 +270,10 @@ FAM(c) = (∀ d in Creatures)(M(d) → F(c, d))</textarea>
           <summary>Proof language</summary>
           <p>End punctuation is optional. References are optional when the compiler can infer exactly which earlier lines you mean.</p>
           <ul>
+            <li>Declare an inductive type with <code>inductive BinaryTree</code>, one constructor per line, and <code>end</code>. Constructor fields use forms such as <code>Branch(left: BinaryTree, right: BinaryTree)</code>.</li>
+            <li>Define a structurally recursive function with <code>recursive count(tree: BinaryTree): Natural</code>, one constructor equation per line, and <code>end</code>. Use <code>by definition of count</code> to unfold one equation in a proof.</li>
+            <li><code>Induct on t</code> begins structural induction for a universal goal over a declared inductive type. Open cases with <code>Case Leaf</code> or <code>Case Branch(Left, Right)</code>; recursive fields receive references such as <code>IH-LEFT</code>.</li>
+            <li>Close a constructor case with <code>therefore P(Branch(Left, Right)) by induction case</code>. After every constructor is complete, close with <code>therefore (∀ t in BinaryTrees)P(t) by induction</code>.</li>
             <li><code>Pretend Bob is a Creature</code> or <code>Let Bob be an arbitrary Creature</code> opens an arbitrary-object world.</li>
             <li><code>Pretend X, Y are Numbers</code> or <code>Let X, Y be arbitrary Numbers</code> opens several arbitrary-object worlds at once.</li>
             <li><code>Make believe S(Bob)</code> or <code>Assume S(Bob)</code> opens a make-believe world.</li>
@@ -353,6 +370,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           <button class="button" id="load-example" type="button">Load creature example</button>
           <button class="button" id="load-math-example" type="button">Load monotone-functions example</button>
           <button class="button" id="load-parity-example" type="button">Load parity example</button>
+          <button class="button" id="load-inductive-example" type="button">Load induction example</button>
           <button class="button" id="clear-proof" type="button">Clear proof</button>
           <span class="compile-note">Checks automatically as you type</span>
         </div>
@@ -376,6 +394,8 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
 
       const els = {
         definitions: document.getElementById("definitions"),
+        inductiveTypes: document.getElementById("inductive-types"),
+        recursiveFunctions: document.getElementById("recursive-functions"),
         axioms: document.getElementById("axioms"),
         axiomNumbers: document.getElementById("axiom-numbers"),
         goal: document.getElementById("goal"),
@@ -403,6 +423,9 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       let activeInput = els.source;
       let compileTimer = 0;
       let predicateDefinitions = new Map();
+      let inductiveTypes = new Map();
+      let constructors = new Map();
+      let recursiveDefinitions = new Map();
       let pendingPopLine = "";
       let pendingHint = null;
 
@@ -643,7 +666,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         return new RegExp(`(?<![A-Za-z_])${escapeRegExp(variable)}(?![A-Za-z0-9_])`, flags);
       }
       function substitute(ast, variable, term) {
-        if (ast.type === "atom") return { type: "atom", value: ast.value.replace(variableRegExp(variable), term) };
+        if (ast.type === "atom") return { type: "atom", value: normalizeAtom(ast.value.replace(variableRegExp(variable), term)) };
         if (ast.type === "not") return { type: "not", value: substitute(ast.value, variable, term) };
         if (ast.type === "forall" || ast.type === "exists") {
           if (ast.variable === variable) return ast;
@@ -831,7 +854,23 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
             const number = rest.match(/^\d+/);
             const name = rest.match(/^[A-Za-z][A-Za-z0-9_]*/);
             if (number) { tokens.push({ type: "number", value: number[0] }); index += number[0].length; continue; }
-            if (name) { tokens.push({ type: "name", value: name[0] }); index += name[0].length; continue; }
+            if (name) {
+              let end = index + name[0].length;
+              if (text[end] === "(") {
+                let depth = 0;
+                for (; end < text.length; end += 1) {
+                  if (text[end] === "(") depth += 1;
+                  else if (text[end] === ")") {
+                    depth -= 1;
+                    if (depth === 0) { end += 1; break; }
+                  }
+                }
+                if (depth !== 0) throw new Error(`Function term ${name[0]} is missing a closing parenthesis.`);
+              }
+              tokens.push({ type: "name", value: text.slice(index, end) });
+              index = end;
+              continue;
+            }
             if ("+-*^()".includes(text[index])) { tokens.push({ type: text[index], value: text[index] }); index += 1; continue; }
             throw new Error(`Polynomial algebra does not understand “${text[index]}”.`);
           }
@@ -909,9 +948,13 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         });
         return rules;
       }
-      function applyAlgebraSubstitutions(poly, rules) {
+      function applyAlgebraSubstitutions(poly, rules, used = null) {
         let result = poly;
-        for (let pass = 0; pass <= rules.length; pass += 1) rules.forEach(rule => { result = substitutePolynomial(result, rule.variable, rule.replacement); });
+        for (let pass = 0; pass <= rules.length; pass += 1) rules.forEach(rule => {
+          const next = substitutePolynomial(result, rule.variable, rule.replacement);
+          if (used && !samePolynomial(next, result)) used.add(rule.ref);
+          result = next;
+        });
         return result;
       }
       function validateAlgebra(ast, candidates) {
@@ -920,11 +963,10 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         if (parts.length < 2) throw new Error("An algebra line must contain an equality.");
         const polynomials = parts.map(parsePolynomial);
         const rules = algebraSubstitutions(candidates);
-        const normalized = polynomials.map(poly => applyAlgebraSubstitutions(poly, rules));
+        const used = new Set();
+        const normalized = polynomials.map(poly => applyAlgebraSubstitutions(poly, rules, used));
         if (!normalized.slice(1).every(poly => samePolynomial(poly, normalized[0]))) throw new Error("The expressions in this equality chain are not algebraically equal using the available equations.");
-        const variables = new Set(polynomials.flatMap(poly => [...poly.keys()].flatMap(key => [...monomialPowers(key).keys()])));
-        const used = [...new Set(rules.filter(rule => variables.has(rule.variable)).map(rule => rule.ref))];
-        return used;
+        return [...used];
       }
       function formulaVariants(source) {
         if (source.ast?.type !== "atom") return [source.ast];
@@ -971,6 +1013,301 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       }
       function stripPeriod(text) { return String(text || "").trim().replace(/[.;]\s*$/, "").trim(); }
 
+      function declarationLines(text) {
+        return String(text || "").split(/\r?\n/).map((raw, index) => ({ raw, text: raw.trim(), number: index + 1 }))
+          .filter(line => line.text && !/^(?:#|\/\/)/.test(line.text));
+      }
+
+      function parseSimpleTerm(raw) {
+        const text = String(raw || "").trim();
+        const name = text.match(/^([A-Za-z][A-Za-z0-9_]*)/);
+        if (!name) throw new Error(`“${text}” is not a constructor or variable term.`);
+        let position = name[1].length;
+        while (/\s/.test(text[position] || "")) position += 1;
+        if (position === text.length) return { type: "name", name: name[1], args: [] };
+        if (text[position] !== "(" || !text.endsWith(")")) throw new Error(`Term ${text} must be a name or a constructor followed by parentheses.`);
+        let depth = 0;
+        for (let index = position; index < text.length; index += 1) {
+          if (text[index] === "(") depth += 1;
+          else if (text[index] === ")") depth -= 1;
+          if (depth === 0 && index !== text.length - 1) throw new Error(`Unexpected text after the constructor term ${text.slice(0, index + 1)}.`);
+          if (depth < 0) throw new Error(`Term ${text} has an extra closing parenthesis.`);
+        }
+        if (depth !== 0) throw new Error(`Term ${text} is missing a closing parenthesis.`);
+        const inside = text.slice(position + 1, -1);
+        const args = inside.trim() ? splitTopLevel(inside).map(parseSimpleTerm) : [];
+        return { type: "call", name: name[1], args };
+      }
+
+      function formatTerm(term) {
+        return term.args?.length ? `${term.name}(${term.args.map(formatTerm).join(", ")})` : term.name;
+      }
+
+      function matchTermPattern(pattern, actual, matches = new Map()) {
+        if (pattern.type === "name" && /^[a-z]/.test(pattern.name)) {
+          const previous = matches.get(pattern.name);
+          const value = formatTerm(actual);
+          if (previous && previous !== value) return null;
+          matches.set(pattern.name, value);
+          return matches;
+        }
+        if (pattern.name !== actual.name || (pattern.args?.length || 0) !== (actual.args?.length || 0)) return null;
+        for (let index = 0; index < (pattern.args?.length || 0); index += 1) {
+          if (!matchTermPattern(pattern.args[index], actual.args[index], matches)) return null;
+        }
+        return matches;
+      }
+
+      function replaceIdentifiers(text, replacements) {
+        let result = String(text);
+        [...replacements.entries()].sort(([a], [b]) => b.length - a.length).forEach(([name, value]) => {
+          result = result.replace(variableRegExp(name), () => value);
+        });
+        return result;
+      }
+
+      function parseInductiveTypeDeclarations() {
+        const lines = declarationLines(els.inductiveTypes.value);
+        const types = new Map();
+        const allConstructors = new Map();
+        let index = 0;
+        while (index < lines.length) {
+          const header = lines[index].text.match(/^inductive\s+([A-Z][A-Za-z0-9_]*)\s*:?$/i);
+          if (!header) throw new Error(`Line ${lines[index].number} must begin an inductive declaration such as “inductive BinaryTree”.`);
+          const typeName = header[1];
+          if (!/^[A-Z]/.test(typeName)) throw new Error(`Type name ${typeName} must begin with an uppercase letter.`);
+          if (types.has(typeName)) throw new Error(`Inductive type ${typeName} is defined more than once.`);
+          const definition = { name: typeName, constructors: [] };
+          index += 1;
+          while (index < lines.length && !/^end$/i.test(lines[index].text)) {
+            const constructorText = lines[index].text.replace(/^constructor\s+/i, "").replace(/[.;]$/, "").trim();
+            const constructorMatch = constructorText.match(/^([A-Z][A-Za-z0-9_]*)(?:\s*\((.*)\))?(?:\s*:\s*[A-Z][A-Za-z0-9_]*)?$/);
+            if (!constructorMatch) throw new Error(`Line ${lines[index].number}: a constructor must look like Leaf or Branch(left: BinaryTree, right: BinaryTree).`);
+            const constructorName = constructorMatch[1];
+            if (allConstructors.has(constructorName)) throw new Error(`Constructor ${constructorName} is defined more than once.`);
+            const fields = constructorMatch[2] && constructorMatch[2].trim() ? splitTopLevel(constructorMatch[2]).map(field => {
+              const match = field.match(/^([a-z][A-Za-z0-9_]*)\s*:\s*([A-Z][A-Za-z0-9_]*)$/);
+              if (!match) throw new Error(`Line ${lines[index].number}: constructor fields must look like left: BinaryTree.`);
+              return { name: match[1], type: match[2] };
+            }) : [];
+            if (new Set(fields.map(field => field.name)).size !== fields.length) throw new Error(`Line ${lines[index].number}: constructor ${constructorName} repeats a field name.`);
+            const constructor = { name: constructorName, resultType: typeName, fields };
+            definition.constructors.push(constructor);
+            allConstructors.set(constructorName, constructor);
+            index += 1;
+          }
+          if (index >= lines.length || !/^end$/i.test(lines[index].text)) throw new Error(`Inductive type ${typeName} needs a closing “end”.`);
+          if (!definition.constructors.length) throw new Error(`Inductive type ${typeName} needs at least one constructor.`);
+          types.set(typeName, definition);
+          index += 1;
+        }
+        for (const definition of types.values()) {
+          definition.constructors.forEach(constructor => {
+            constructor.recursiveFields = constructor.fields.filter(field => sameType(field.type, definition.name));
+          });
+          if (!definition.constructors.some(constructor => !constructor.recursiveFields.length)) throw new Error(`Inductive type ${definition.name} needs a base constructor with no recursive fields.`);
+        }
+        return { types, allConstructors };
+      }
+
+      function splitDefinitionEquation(text) {
+        let depth = 0;
+        for (let index = 0; index < text.length; index += 1) {
+          if (text[index] === "(") depth += 1;
+          else if (text[index] === ")") depth -= 1;
+          else if (text[index] === "=" && depth === 0) return [text.slice(0, index).trim(), text.slice(index + 1).trim()];
+        }
+        return null;
+      }
+
+      function findNamedCalls(text, name) {
+        const calls = [];
+        const pattern = new RegExp(`(?<![A-Za-z0-9_])${escapeRegExp(name)}\\s*\\(`, "g");
+        let match;
+        while ((match = pattern.exec(text))) {
+          const open = text.indexOf("(", match.index + name.length);
+          let depth = 0, end = open;
+          for (; end < text.length; end += 1) {
+            if (text[end] === "(") depth += 1;
+            else if (text[end] === ")") {
+              depth -= 1;
+              if (depth === 0) { end += 1; break; }
+            }
+          }
+          if (depth !== 0) throw new Error(`Call to ${name} is missing a closing parenthesis.`);
+          calls.push({ start: match.index, end, text: text.slice(match.index, end) });
+          pattern.lastIndex = match.index + name.length;
+        }
+        return calls;
+      }
+
+      function parseRecursiveDeclarations() {
+        const lines = declarationLines(els.recursiveFunctions.value);
+        const definitions = new Map();
+        let index = 0;
+        while (index < lines.length) {
+          const predicateHeader = lines[index].text.match(/^recursive\s+predicate\s+([A-Z][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*:?$/i);
+          const functionHeader = lines[index].text.match(/^recursive\s+([a-z][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*:\s*([A-Z][A-Za-z0-9_]*)\s*:?$/i);
+          const header = predicateHeader || functionHeader;
+          if (!header) throw new Error(`Line ${lines[index].number} must begin a recursive function or recursive predicate declaration.`);
+          const predicate = Boolean(predicateHeader);
+          const name = header[1];
+          if (definitions.has(name)) throw new Error(`Recursive definition ${name} is given more than once.`);
+          const params = splitTopLevel(header[2]).map(parameter => {
+            const match = parameter.match(/^([a-z][A-Za-z0-9_]*)\s*:\s*([A-Z][A-Za-z0-9_]*)$/);
+            if (!match) throw new Error(`Line ${lines[index].number}: parameters must look like tree: BinaryTree.`);
+            return { name: match[1], type: match[2] };
+          });
+          if (params.length !== 1) throw new Error(`Recursive definition ${name} must currently have exactly one parameter.`);
+          const typeDef = [...inductiveTypes.values()].find(type => sameType(type.name, params[0].type));
+          if (!typeDef) throw new Error(`Recursive definition ${name} must operate on a declared inductive type, not ${params[0].type}.`);
+          const definition = { name, predicate, params, parameter: params[0], resultType: predicate ? "Proposition" : header[3], typeDef, clauses: [] };
+          index += 1;
+          while (index < lines.length && !/^end$/i.test(lines[index].text)) {
+            const equation = splitDefinitionEquation(lines[index].text.replace(/[.;]$/, ""));
+            if (!equation) throw new Error(`Line ${lines[index].number}: each recursive clause needs an equals sign.`);
+            let lhs;
+            try { lhs = parseSimpleTerm(equation[0]); }
+            catch (error) { throw new Error(`Line ${lines[index].number}: ${error.message}`); }
+            if (lhs.name !== name || lhs.args.length !== 1) throw new Error(`Line ${lines[index].number}: the left side must have the form ${name}(constructor pattern).`);
+            const pattern = lhs.args[0];
+            const constructor = constructors.get(pattern.name);
+            if (!constructor || !sameType(constructor.resultType, typeDef.name)) throw new Error(`Line ${lines[index].number}: ${pattern.name} is not a constructor of ${typeDef.name}.`);
+            if ((pattern.args?.length || 0) !== constructor.fields.length) throw new Error(`Line ${lines[index].number}: ${constructor.name} expects ${constructor.fields.length} field${constructor.fields.length === 1 ? "" : "s"}.`);
+            const patternNames = pattern.args.map(argument => argument.type === "name" && /^[a-z]/.test(argument.name) ? argument.name : null);
+            if (patternNames.some(value => !value) || new Set(patternNames).size !== patternNames.length) throw new Error(`Line ${lines[index].number}: constructor fields in a recursive pattern must be distinct lowercase names.`);
+            const recursiveNames = new Set(constructor.fields.map((field, fieldIndex) => sameType(field.type, typeDef.name) ? patternNames[fieldIndex] : null).filter(Boolean));
+            for (const call of findNamedCalls(equation[1], name)) {
+              const callTerm = parseSimpleTerm(call.text);
+              if (callTerm.args.length !== 1 || callTerm.args[0].type !== "name" || !recursiveNames.has(callTerm.args[0].name)) {
+                throw new Error(`Line ${lines[index].number}: recursive calls to ${name} must use a direct recursive field of ${constructor.name}.`);
+              }
+            }
+            definition.clauses.push({ constructor, pattern, patternNames, rhsText: equation[1], rhsAst: predicate ? parseSurfaceFormula(equation[1]) : null, line: lines[index].number });
+            index += 1;
+          }
+          if (index >= lines.length || !/^end$/i.test(lines[index].text)) throw new Error(`Recursive definition ${name} needs a closing “end”.`);
+          const covered = new Set(definition.clauses.map(clause => clause.constructor.name));
+          const duplicate = definition.clauses.find((clause, clauseIndex) => definition.clauses.findIndex(other => other.constructor.name === clause.constructor.name) !== clauseIndex);
+          if (duplicate) throw new Error(`Recursive definition ${name} gives more than one ${duplicate.constructor.name} clause.`);
+          const missing = typeDef.constructors.filter(constructor => !covered.has(constructor.name));
+          if (missing.length) throw new Error(`Recursive definition ${name} is missing ${missing.map(constructor => constructor.name).join(", ")}.`);
+          definitions.set(name, definition);
+          index += 1;
+        }
+        const dependencies = new Map([...definitions].map(([name, definition]) => [name, new Set(
+          [...definitions.keys()].filter(other => other !== name && definition.clauses.some(clause => findNamedCalls(clause.rhsText, other).length))
+        )]));
+        const visiting = new Set(), visited = new Set();
+        function visit(name, path = []) {
+          if (visiting.has(name)) throw new Error(`Mutually recursive definitions are not yet supported: ${[...path, name].join(" → ")}.`);
+          if (visited.has(name)) return;
+          visiting.add(name);
+          for (const dependency of dependencies.get(name) || []) visit(dependency, [...path, name]);
+          visiting.delete(name);
+          visited.add(name);
+        }
+        definitions.forEach((_, name) => visit(name));
+        return definitions;
+      }
+
+      function definitionInstance(definition, callText) {
+        let call;
+        try { call = parseSimpleTerm(callText); } catch { return null; }
+        if (call.name !== definition.name || call.args.length !== 1) return null;
+        for (const clause of definition.clauses) {
+          const matches = matchTermPattern(clause.pattern, call.args[0], new Map());
+          if (!matches) continue;
+          return {
+            clause,
+            matches,
+            rhsText: replaceIdentifiers(clause.rhsText, matches),
+            rhsAst: clause.rhsAst ? [...matches].reduce((ast, [variable, value]) => substitute(ast, variable, value), clause.rhsAst) : null
+          };
+        }
+        return null;
+      }
+
+      function definitionTextVariants(text, definition) {
+        return findNamedCalls(text, definition.name).flatMap(call => {
+          const instance = definitionInstance(definition, call.text);
+          if (!instance) return [];
+          return [normalizeAtom(`${text.slice(0, call.start)}${instance.rhsText}${text.slice(call.end)}`)];
+        });
+      }
+
+      function definitionFormulaVariants(ast, definition) {
+        if (!ast) return [];
+        const variants = [];
+        if (definition.predicate && ast.type === "atom") {
+          const instance = definitionInstance(definition, ast.value);
+          if (instance?.rhsAst) variants.push(instance.rhsAst);
+        }
+        if (!definition.predicate && ast.type === "atom") {
+          definitionTextVariants(ast.value, definition).forEach(value => variants.push({ type: "atom", value }));
+        }
+        if (ast.type === "not") definitionFormulaVariants(ast.value, definition).forEach(value => variants.push({ type: "not", value }));
+        else if (ast.type === "forall" || ast.type === "exists") definitionFormulaVariants(ast.body, definition).forEach(body => variants.push({ ...ast, body }));
+        else if (!["atom", "not", "forall", "exists"].includes(ast.type)) {
+          definitionFormulaVariants(ast.left, definition).forEach(left => variants.push({ ...ast, left }));
+          definitionFormulaVariants(ast.right, definition).forEach(right => variants.push({ ...ast, right }));
+        }
+        return variants;
+      }
+
+      function validateDefinitionMove(ast, refs, definitionName) {
+        const definition = recursiveDefinitions.get(definitionName);
+        if (!definition) throw new Error(`No recursive function or predicate named ${definitionName} is defined.`);
+        if (refs.length > 1) throw new Error("A definition move may cite at most one earlier line.");
+        if (refs.length === 1) {
+          const forward = definitionFormulaVariants(refs[0].ast, definition).some(value => sameFormula(value, ast));
+          const reverse = definitionFormulaVariants(ast, definition).some(value => sameFormula(value, refs[0].ast));
+          if (!forward && !reverse) throw new Error(`Applying the definition of ${definitionName} to ${refs[0].ref} does not produce this statement.`);
+          return `definition of ${definitionName} applied to ${refs[0].ref}`;
+        }
+        if (definition.predicate && ast.type === "iff") {
+          const direct = definitionFormulaVariants(ast.left, definition).some(value => sameFormula(value, ast.right));
+          const reverse = definitionFormulaVariants(ast.right, definition).some(value => sameFormula(value, ast.left));
+          if (direct || reverse) return `unfolded the definition of ${definitionName}`;
+        }
+        if (!definition.predicate && ast.type === "atom") {
+          const parts = algebraChain(ast.value);
+          if (parts.length === 2) {
+            const leftToRight = definitionTextVariants(parts[0], definition).some(value => value === normalizeAtom(parts[1]));
+            const rightToLeft = definitionTextVariants(parts[1], definition).some(value => value === normalizeAtom(parts[0]));
+            if (leftToRight || rightToLeft) return `unfolded the definition of ${definitionName}`;
+          }
+        }
+        throw new Error(`This line is not one unfolding of the definition of ${definitionName}.`);
+      }
+
+      function inductiveTypeForDomain(domain) {
+        return [...inductiveTypes.values()].find(type => sameType(type.name, domain)) || null;
+      }
+
+      function inductionCaseData(typeDef, termText) {
+        const term = parseSimpleTerm(termText);
+        const constructor = constructors.get(term.name);
+        if (!constructor || !sameType(constructor.resultType, typeDef.name)) throw new Error(`${term.name} is not a constructor of ${typeDef.name}.`);
+        if (term.args.length !== constructor.fields.length) throw new Error(`${constructor.name} needs ${constructor.fields.length} field${constructor.fields.length === 1 ? "" : "s"}.`);
+        const names = term.args.map(argument => argument.type === "name" && /^[A-Z]/.test(argument.name) ? argument.name : null);
+        if (names.some(name => !name) || new Set(names).size !== names.length) throw new Error("Constructor cases must give each field a distinct uppercase object name.");
+        return { term, termText: formatTerm(term), constructor, names };
+      }
+
+      function suggestedInductionCase(constructor) {
+        if (!constructor.fields.length) return `Case ${constructor.name}`;
+        const used = new Set();
+        const names = constructor.fields.map(field => {
+          const base = field.name.charAt(0).toUpperCase() + field.name.slice(1);
+          let candidate = base || "Part", suffix = 2;
+          while (used.has(candidate)) candidate = `${base}${suffix++}`;
+          used.add(candidate);
+          return candidate;
+        });
+        return `Case ${constructor.name}(${names.join(", ")})`;
+      }
+
       function parseDefinitions() {
         const definitions = new Map();
         const lines = els.definitions.value.split(/\r?\n/);
@@ -1001,7 +1338,6 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           seen.add(ref);
           sources.push({ ref, label: `Axiom ${ref}`, ast: parseFormula(formulaText), scopePath: [], axiom: true, line: 0, usable: true });
         });
-        if (!sources.length) throw new Error("Enter at least one axiom.");
         return sources;
       }
 
@@ -1014,6 +1350,8 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         ["ande", "and_e"], ["∧e", "and_e"], ["and elimination", "and_e"],
         ["ori", "or_i"], ["∨i", "or_i"], ["or introduction", "or_i"],
         ["case", "case_close"], ["end case", "case_close"], ["cases", "cases"], ["proof by cases", "cases"],
+        ["induction case", "induction_case"], ["structural induction", "induction"], ["induction", "induction"],
+        ["definition", "definition"],
         ["contradiction", "contradiction"], ["proof by contradiction", "contradiction"],
         ["algebra", "algebra"],
         ["de morgan", "demorgan"], ["demorgans", "demorgan"], ["double negation", "dn"], ["dn", "dn"],
@@ -1027,11 +1365,20 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         const lower = raw.toLowerCase();
         const alias = aliasOrder.find(name => lower === name || lower.startsWith(`${name} `));
         if (!alias) throw new Error(`Unknown proof rule “${raw}”. Open “Proof language” to see the accepted names.`);
-        return { rule: ruleAliases.get(alias), refsText: raw.slice(alias.length).trim() };
+        const rule = ruleAliases.get(alias);
+        let refsText = raw.slice(alias.length).trim();
+        let definitionName = null;
+        if (rule === "definition") {
+          const match = refsText.match(/^of\s+([A-Za-z][A-Za-z0-9_]*)(?:\s+(.*))?$/i);
+          if (!match) throw new Error("A definition move must name the function or predicate, as in ‘by definition of count’. ");
+          definitionName = match[1];
+          refsText = match[2] || "";
+        }
+        return { rule, refsText, definitionName };
       }
       function parseRefTokens(text) {
         if (!text) return [];
-        return (text.toUpperCase().match(/A\d+|\b[IVXLCDM]+\b|\d+/g) || []);
+        return (text.toUpperCase().match(/IH-[A-Z][A-Z0-9_]*|A\d+|\b[IVXLCDM]+\b|\d+/g) || []);
       }
 
       function parseArbitraryNames(text) {
@@ -1063,7 +1410,11 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       function parseCommand(raw) {
         const clean = stripPeriod(convertShorthand(raw));
         const nameList = "[A-Za-z][A-Za-z0-9_]*(?:\\s*,\\s*[A-Za-z][A-Za-z0-9_]*)*";
-        let match = clean.match(new RegExp(`^Pretend\\s+(${nameList})\\s+(is|are)\\s+(?:an?\\s+)?(?:arbitrary\\s+)?([A-Za-z][A-Za-z0-9_]*)$`, "i"));
+        let match = clean.match(/^Induct(?:ion)?\s+on\s+([a-z][A-Za-z0-9_]*)$/i);
+        if (match) return { kind: "induction_open", variable: match[1] };
+        match = clean.match(/^Case\s+([A-Z][A-Za-z0-9_]*(?:\s*\(.*\))?)\s*:?$/);
+        if (match) return { kind: "induction_case", termText: match[1] };
+        match = clean.match(new RegExp(`^Pretend\\s+(${nameList})\\s+(is|are)\\s+(?:an?\\s+)?(?:arbitrary\\s+)?([A-Za-z][A-Za-z0-9_]*)$`, "i"));
         if (match) {
           const names = parseArbitraryNames(match[1]);
           if (names.length === 1 && match[2].toLowerCase() !== "is") throw new Error("Use “is” when introducing one arbitrary object.");
@@ -1184,12 +1535,19 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
             .map(variant => ({ ...source, ast: variant })));
           return unique(matches, "No available statement is an instance of this existential conclusion.", "EG has more than one possible source");
         }
+        if (rule === "definition") return [];
         if (rule === "algebra") return [];
         if (rule === "and_e") return unique(pool.filter(x => x.ast.type === "and" && (sameFormula(x.ast.left, ast) || sameFormula(x.ast.right, ast))), "No available conjunction contains this statement.", "And elimination has more than one possible source");
         if (rule === "or_i") return unique(pool.filter(x => ast.type === "or" && (sameFormula(x.ast, ast.left) || sameFormula(x.ast, ast.right))), "Neither side of this disjunction is available.", "Or introduction has more than one possible source");
         if (rule === "demorgan") return unique(pool.filter(x => deMorganPartners(x.ast).some(y => sameFormula(y, ast))), "No available line has this De Morgan equivalent.", "De Morgan has more than one possible source");
         if (rule === "dn") return unique(pool.filter(x => (x.ast.type === "not" && x.ast.value.type === "not" && sameFormula(x.ast.value.value, ast)) || (ast.type === "not" && ast.value.type === "not" && sameFormula(ast.value.value, x.ast))), "No available line differs from this one by exactly two negations.", "Double negation has more than one possible source");
         if (rule === "contradiction") return unique(pool.filter(x => isContradictionFormula(x.ast) && (!top || top.type !== "pbc" || x.scopePath.includes(top.id))), "No contradiction has been established in the current world.", "More than one contradiction is available");
+        if (rule === "induction_case" && top?.type === "induction_case") {
+          const source = latestInScope(sources, path, top.id, x => sameFormula(x.ast, top.caseGoal));
+          if (!source) throw new Error(`No line in this constructor case establishes ${formatFormula(top.caseGoal)}.`);
+          return [source];
+        }
+        if (rule === "induction") return [];
         if (["mb", "ug", "ei", "case_close"].includes(rule) && top) {
           const target = rule === "mb" && ast.type === "imp" ? ast.right : rule === "ug" && ast.type === "forall" ? substitute(ast.body, ast.variable, top.name) : ast;
           const source = latestInScope(sources, path, top.id, x => sameFormula(x.ast, target));
@@ -1272,6 +1630,22 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           const used = validateAlgebra(ast, candidates);
           return used.length ? `checked polynomial algebra using ${used.join(", ")}` : "checked polynomial identity";
         }
+        if (rule === "definition") return validateDefinitionMove(ast, refs, command.definitionName);
+        if (rule === "induction_case") {
+          if (!top || top.type !== "induction_case") throw new Error("There is no open constructor case to finish.");
+          if (!sameFormula(ast, top.caseGoal)) throw new Error(`This constructor case must conclude ${formatFormula(top.caseGoal)}.`);
+          if (refs.length !== 1 || !sameFormula(refs[0].ast, top.caseGoal) || !refs[0].scopePath.includes(top.id)) throw new Error(`Establish ${formatFormula(top.caseGoal)} inside this constructor case first.`);
+          return `finished the ${top.constructor.name} induction case`;
+        }
+        if (rule === "induction") {
+          if (!top || top.type !== "induction") throw new Error("There is no open structural induction to finish.");
+          if (!sameFormula(ast, top.theorem)) throw new Error(`Structural induction must conclude ${formatFormula(top.theorem)}.`);
+          const summaries = [...sources.values()].filter(source => source.meta?.inductionCaseSummary && source.meta.inductionId === top.id);
+          const completed = new Set(summaries.map(source => source.meta.constructorName));
+          const missing = top.typeDef.constructors.filter(constructor => !completed.has(constructor.name));
+          if (missing.length) throw new Error(`Finish the ${missing.map(constructor => constructor.name).join(", ")} induction case${missing.length === 1 ? "" : "s"} first.`);
+          return `structural induction on ${top.variable}`;
+        }
         if (rule === "and_i") {
           if (refs.length !== 2 || ast.type !== "and") throw new Error("And introduction needs two sources and a conclusion P ∧ Q.");
           const direct = sameFormula(ast.left, refs[0].ast) && sameFormula(ast.right, refs[1].ast);
@@ -1333,7 +1707,10 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         let surface = surfaceGoal;
         let expanded = expandedGoal;
         scopes.forEach(scope => {
-          if (scope.type === "ug" && expanded?.type === "forall" && sameType(expanded.domain, scope.domain)) {
+          if (scope.type === "induction_case") {
+            surface = scope.caseSurface;
+            expanded = scope.caseGoal;
+          } else if (scope.type === "ug" && expanded?.type === "forall" && sameType(expanded.domain, scope.domain)) {
             expanded = substitute(expanded.body, expanded.variable, scope.name);
             surface = surface?.type === "forall" && sameType(surface.domain, scope.domain)
               ? substitute(surface.body, surface.variable, scope.name)
@@ -1381,17 +1758,21 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         const source = latestInScope(sources, path, top.id, item => sameFormula(item.ast, target.expanded));
         if (!source) return null;
         const parentTarget = currentGoalState(surfaceGoal, expandedGoal, scopes.slice(0, -1));
-        const statement = formatFormula(parentTarget.surface || parentTarget.expanded);
-        const rules = { ug: "UG", mb: "MB", ei: "EI", case: "case", pbc: "contradiction" };
+        const statement = top.type === "induction_case"
+          ? formatFormula(top.caseSurface || top.caseGoal)
+          : formatFormula(parentTarget.surface || parentTarget.expanded);
+        const rules = { ug: "UG", mb: "MB", ei: "EI", case: "case", pbc: "contradiction", induction_case: "induction case" };
         const rule = rules[top.type];
         if (!rule) return null;
         return {
           line: `therefore ${statement} by ${rule} ${source.ref}`,
           message: top.type === "case"
             ? `✓ Current goal met in Case ${top.caseLabel}.`
+            : top.type === "induction_case" ? `✓ The ${top.constructor.name} induction case is complete.`
             : top.type === "pbc" ? "✓ Contradiction established in this pretend world." : "✓ Current goal met in this pretend world.",
           button: top.type === "case"
             ? `Finish Case ${top.caseLabel}`
+            : top.type === "induction_case" ? `Finish ${top.constructor.name} case`
             : top.type === "pbc" ? "Finish proof by contradiction" : "Add pop-out line"
         };
       }
@@ -1565,6 +1946,19 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         const expanded = target.expanded;
         const surface = target.surface;
         const path = scopes.map(scope => scope.id);
+        const top = scopes[scopes.length - 1];
+        if (top?.type === "induction") {
+          const completed = new Set([...sources.values()].filter(source => source.meta?.inductionCaseSummary && source.meta.inductionId === top.id).map(source => source.meta.constructorName));
+          const next = top.typeDef.constructors.find(constructor => !completed.has(constructor.name));
+          if (next) return {
+            strategy: `Structural induction needs one proof for each constructor. Open the ${next.name} case next.`,
+            line: suggestedInductionCase(next)
+          };
+          return {
+            strategy: "Every constructor case is complete. Finish the structural induction and return to the surrounding world.",
+            line: `therefore ${formatFormula(top.theoremSurface || top.theorem)} by induction`
+          };
+        }
         if (isContradictionFormula(expanded)) {
           const pool = accessibleSources(sources, path);
           for (let first = 0; first < pool.length; first += 1) {
@@ -1641,6 +2035,16 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
           }
           line.append(scope.label);
           els.worlds.append(line);
+          (scope.hypotheses || []).forEach(hypothesis => {
+            const item = document.createElement("span");
+            item.className = "world-line";
+            item.style.setProperty("--depth", index + 1);
+            const rail = document.createElement("span");
+            rail.className = "world-rail";
+            rail.textContent = "↳ ";
+            item.append(rail, `${hypothesis.ref}: ${formatFormula(hypothesis.ast)}`);
+            els.worlds.append(item);
+          });
         });
       }
 
@@ -1701,10 +2105,12 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       }
 
       function isWorldCloser(line) {
-        return /^(?:∴|therefore)\b.*\bby\s+(?:MB|UG|EI|case|contradiction)\b/i.test(line.trim());
+        return /^(?:∴|therefore)\b.*\bby\s+(?:MB|UG|EI|case|contradiction|induction(?:\s+case)?)\b/i.test(line.trim());
       }
       function worldsOpened(line) {
         const text = line.trim();
+        if (/^Induct(?:ion)?\s+on\s+[a-z][A-Za-z0-9_]*[.;]?$/i.test(text)) return 1;
+        if (/^Case\s+[A-Z][A-Za-z0-9_]*(?:\s*\(.*\))?\s*[:.;]?$/.test(text)) return 1;
         if (/^For\s+contradiction\b/i.test(text)) return 1;
         if (/^Make\s+believe\b/i.test(text) || /^Assume\b/i.test(text) || caseHeaderInfo(text)) return 1;
         const arbitrary = text.match(/^(?:Pretend|Let)\s+([A-Za-z][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z][A-Za-z0-9_]*)*)\s+(?:is|are|be)\b/i);
@@ -1785,6 +2191,8 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         els.diagnostics.replaceChildren();
         els.result.replaceChildren();
         els.definitions.setAttribute("aria-invalid", "false");
+        els.inductiveTypes.setAttribute("aria-invalid", "false");
+        els.recursiveFunctions.setAttribute("aria-invalid", "false");
         els.axioms.setAttribute("aria-invalid", "false");
         els.goal.setAttribute("aria-invalid", "false");
         els.source.setAttribute("aria-invalid", "false");
@@ -1795,6 +2203,24 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         renderHint(null);
         els.worlds.textContent = "original world";
         let axioms, goal, goalSurface;
+        try {
+          const declarations = parseInductiveTypeDeclarations();
+          inductiveTypes = declarations.types;
+          constructors = declarations.allConstructors;
+        }
+        catch (error) {
+          els.inductiveTypes.setAttribute("aria-invalid", "true");
+          diagnostic("error", 0, `Inductive types: ${error.message}`);
+          finish("compile failed", null, [], error.message, announce);
+          return;
+        }
+        try { recursiveDefinitions = parseRecursiveDeclarations(); }
+        catch (error) {
+          els.recursiveFunctions.setAttribute("aria-invalid", "true");
+          diagnostic("error", 0, `Recursive definitions: ${error.message}`);
+          finish("compile failed", null, [], error.message, announce);
+          return;
+        }
         try { predicateDefinitions = parseDefinitions(); }
         catch (error) {
           els.definitions.setAttribute("aria-invalid", "true");
@@ -1849,7 +2275,76 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
             let meta = {};
             let message = "";
 
-            if (command.kind === "ug_open") {
+            if (command.kind === "induction_open") {
+              const target = currentGoalState(goalSurface, goal, scopes);
+              if (target.expanded?.type !== "forall") throw new Error("Structural induction must begin when the current goal is universal.");
+              if (target.expanded.variable.toLowerCase() !== command.variable.toLowerCase()) throw new Error(`The current goal quantifies ${target.expanded.variable}, not ${command.variable}.`);
+              const typeDef = inductiveTypeForDomain(target.expanded.domain);
+              if (!typeDef) throw new Error(`No inductive type matches the quantified domain ${target.expanded.domain || "of this goal"}.`);
+              const scope = {
+                id: `scope-${++scopeCounter}`,
+                type: "induction",
+                variable: target.expanded.variable,
+                typeDef,
+                theorem: target.expanded,
+                theoremSurface: target.surface,
+                label: `structural induction on ${target.expanded.variable} in ${displayPluralType(typeDef.name)}`
+              };
+              scopes.push(scope);
+              sourcePath = scopes.map(x => x.id);
+              usable = false;
+              meta = { opening: "induction" };
+              message = `began structural induction on ${target.expanded.variable}; prove one case for each constructor of ${typeDef.name}`;
+            } else if (command.kind === "induction_case") {
+              if (!top || top.type !== "induction") throw new Error("A constructor case must come immediately inside an open structural induction.");
+              const data = inductionCaseData(top.typeDef, command.termText);
+              const completed = new Set([...sources.values()].filter(source => source.meta?.inductionCaseSummary && source.meta.inductionId === top.id).map(source => source.meta.constructorName));
+              if (completed.has(data.constructor.name)) throw new Error(`The ${data.constructor.name} induction case is already complete.`);
+              for (const name of data.names) {
+                const used = scopes.some(scope => scope.name === name || scope.witness === name)
+                  || outerFormulas.some(formula => containsTerm(formula, name))
+                  || accessibleSources(sources, pathBefore).some(source => containsTerm(source.ast, name));
+                if (used) throw new Error(`${name} is already used. Choose a fresh name for this constructor field.`);
+              }
+              const caseSurface = substitute(top.theoremSurface.body, top.theoremSurface.variable, data.termText);
+              const caseGoal = substitute(top.theorem.body, top.theorem.variable, data.termText);
+              const caseScope = {
+                id: `scope-${++scopeCounter}`,
+                type: "induction_case",
+                inductionId: top.id,
+                constructor: data.constructor,
+                termText: data.termText,
+                names: data.names,
+                caseSurface,
+                caseGoal,
+                hypotheses: [],
+                label: `${data.constructor.name} case: ${data.termText}`
+              };
+              scopes.push(caseScope);
+              sourcePath = scopes.map(x => x.id);
+              usable = false;
+              meta = { opening: "induction_case", constructorName: data.constructor.name };
+              data.constructor.fields.forEach((field, fieldIndex) => {
+                if (!sameType(field.type, top.typeDef.name)) return;
+                const objectName = data.names[fieldIndex];
+                const hypothesis = substitute(top.theorem.body, top.theorem.variable, objectName);
+                const hypothesisSurface = substitute(top.theoremSurface.body, top.theoremSurface.variable, objectName);
+                const ref = `IH-${objectName.toUpperCase()}`;
+                sources.set(ref, {
+                  ref,
+                  label: `Induction hypothesis for ${objectName}`,
+                  ast: hypothesis,
+                  surfaceAst: hypothesisSurface,
+                  scopePath: sourcePath,
+                  axiom: false,
+                  line: 0,
+                  usable: true,
+                  meta: { inductionHypothesis: true, objectName }
+                });
+                caseScope.hypotheses.push({ ref, ast: hypothesisSurface || hypothesis });
+              });
+              message = `opened the ${data.constructor.name} case${data.constructor.recursiveFields.length ? ` with ${data.constructor.recursiveFields.length} induction ${data.constructor.recursiveFields.length === 1 ? "hypothesis" : "hypotheses"}` : ""}`;
+            } else if (command.kind === "ug_open") {
               for (const name of command.names) {
                 const used = scopes.some(scope => scope.name === name || scope.witness === name)
                   || outerFormulas.some(x => containsTerm(x, name))
@@ -1933,12 +2428,15 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
               else if (!refs.length) refs = inferRefs(command.rule, ast, sources, pathBefore, top);
               message = validateRule(command.rule, ast, refs, { top, sources, path: pathBefore, command });
               const closesContradictionWorld = command.rule === "contradiction" && top?.type === "pbc";
-              if (["mb", "ug", "ei", "case_close"].includes(command.rule) || closesContradictionWorld) {
+              if (["mb", "ug", "ei", "case_close", "induction_case", "induction"].includes(command.rule) || closesContradictionWorld) {
                 const closed = scopes.pop();
                 sourcePath = scopes.map(x => x.id);
                 if (command.rule === "case_close") {
                   usable = false;
                   meta = { caseSummary: true, side: closed.side, caseLabel: closed.caseLabel, caseFamily: closed.caseFamily, disjunctionRef: closed.disjunctionRef };
+                } else if (command.rule === "induction_case") {
+                  usable = false;
+                  meta = { inductionCaseSummary: true, inductionId: closed.inductionId, constructorName: closed.constructor.name };
                 }
               }
             }
@@ -1999,7 +2497,7 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         if (event.currentTarget === els.source) formatProofIndentation();
         updateNumbers(); updateAxiomNumbers(); scheduleCompile();
       }
-      [els.definitions, els.axioms, els.goal, els.source].forEach(input => {
+      [els.definitions, els.inductiveTypes, els.recursiveFunctions, els.axioms, els.goal, els.source].forEach(input => {
         input.addEventListener("focus", () => { activeInput = input; });
         input.addEventListener("input", handleInput);
       });
@@ -2071,6 +2569,8 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
       });
       els.insertHintLine.addEventListener("click", () => appendProofLine(pendingHint?.line));
       document.getElementById("load-example").addEventListener("click", () => {
+        els.inductiveTypes.value = "";
+        els.recursiveFunctions.value = "";
         els.definitions.value = "FAS(c) = (∀ d in Creatures)(S(d) → F(c, d))\nFAM(c) = (∀ d in Creatures)(M(d) → F(c, d))";
         els.axioms.value = "(∀ c in Creatures) (S(c) → M(c))";
         els.goal.value = "(∀ c in Creatures) (FAM(c) → FAS(c))";
@@ -2078,6 +2578,8 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         updateNumbers(); updateAxiomNumbers(); compile({ announce: true });
       });
       document.getElementById("load-math-example").addEventListener("click", () => {
+        els.inductiveTypes.value = "";
+        els.recursiveFunctions.value = "";
         els.definitions.value = "Monotone(f) = (∀ x, y)(x < y → f(x) < f(y))\nBetween(x, y, z) = ((x ≤ y ∧ y ≤ z) ∨ (z ≤ y ∧ y ≤ x))";
         els.axioms.value = "Monotone(F)\nMonotone(G)";
         els.goal.value = "(∀ x, y)(x < y → F(G(x)) < F(G(y)))";
@@ -2085,10 +2587,21 @@ therefore (∀ c in Creatures) (FAM(c) → FAS(c)) by UG 11</textarea>
         updateNumbers(); updateAxiomNumbers(); compile({ announce: true });
       });
       document.getElementById("load-parity-example").addEventListener("click", () => {
+        els.inductiveTypes.value = "";
+        els.recursiveFunctions.value = "";
         els.definitions.value = "Even(n) = (∃ k)(2k = n)\nOdd(n) = (∃ k)(2k + 1 = n)";
         els.axioms.value = "(∀ n)(¬Even(n) ↔ Odd(n))\n(∀ n)(¬Odd(n) ↔ Even(n))\n(∀ n)(¬(Even(n) ∧ Odd(n)))";
         els.goal.value = "(∀ n)(Even(n^2) → Even(n))";
         els.source.value = "Let N be an Integer\n  Assume Even(N^2)\n    For contradiction assume ¬Even(N)\n      ¬Even(N) ↔ Odd(N) by UI I\n      ¬Even(N) → Odd(N) by iff elimination 4\n      Odd(N) by detachment 3, 5\n      Let J be a witness such that 2J + 1 = N\n        N^2 = (2J + 1)(2J + 1) = 4J^2 + 4J + 1 = 2(2J^2 + 2J) + 1 by algebra\n        Odd(N^2) by EG 8\n      therefore Odd(N^2) by EI 9\n      Even(N^2) ∧ Odd(N^2) by and introduction 2, 10\n      ¬(Even(N^2) ∧ Odd(N^2)) by UI III\n      Contradiction\n    therefore Even(N) by contradiction 13\n  therefore Even(N^2) → Even(N) by MB 14\ntherefore (∀ n)(Even(n^2) → Even(n)) by UG 15";
+        updateNumbers(); updateAxiomNumbers(); compile({ announce: true });
+      });
+      document.getElementById("load-inductive-example").addEventListener("click", () => {
+        els.inductiveTypes.value = "inductive BinaryTree\n  Leaf\n  Branch(left: BinaryTree, right: BinaryTree)\nend";
+        els.recursiveFunctions.value = "recursive leaves(tree: BinaryTree): Natural\n  leaves(Leaf) = 1\n  leaves(Branch(left, right)) = leaves(left) + leaves(right)\nend\n\nrecursive internal(tree: BinaryTree): Natural\n  internal(Leaf) = 0\n  internal(Branch(left, right)) = internal(left) + internal(right) + 1\nend\n\nrecursive height(tree: BinaryTree): Natural\n  height(Leaf) = 0\n  height(Branch(left, right)) = max(height(left), height(right)) + 1\nend\n\nrecursive predicate Perfect(tree: BinaryTree)\n  Perfect(Leaf) = True\n  Perfect(Branch(left, right)) = Perfect(left) ∧ Perfect(right) ∧ height(left) = height(right)\nend";
+        els.definitions.value = "";
+        els.axioms.value = "";
+        els.goal.value = "(∀ t in BinaryTrees)(leaves(t) = internal(t) + 1)";
+        els.source.value = "Induct on t\n  Case Leaf\n    leaves(Leaf) = 1 by definition of leaves\n    internal(Leaf) = 0 by definition of internal\n    leaves(Leaf) = internal(Leaf) + 1 by algebra 3, 4\n  therefore leaves(Leaf) = internal(Leaf) + 1 by induction case 5\n  Case Branch(Left, Right)\n    leaves(Branch(Left, Right)) = leaves(Left) + leaves(Right) by definition of leaves\n    internal(Branch(Left, Right)) = internal(Left) + internal(Right) + 1 by definition of internal\n    leaves(Branch(Left, Right)) = internal(Branch(Left, Right)) + 1 by algebra IH-LEFT, IH-RIGHT, 8, 9\n  therefore leaves(Branch(Left, Right)) = internal(Branch(Left, Right)) + 1 by induction case 10\ntherefore (∀ t in BinaryTrees)(leaves(t) = internal(t) + 1) by induction";
         updateNumbers(); updateAxiomNumbers(); compile({ announce: true });
       });
       document.getElementById("clear-proof").addEventListener("click", () => { els.source.value = ""; updateNumbers(); compile({ announce: true }); els.source.focus(); });
